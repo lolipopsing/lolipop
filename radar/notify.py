@@ -47,6 +47,10 @@ def job_line(j, with_meta=True):
             dates.append("⏰ deadline " + _fr(j["deadline"]))
         if dates:
             s += "\n🗓 " + " · ".join(dates)
+        if j.get("restriction"):
+            s += "\n⚠️ Réservé : " + esc(j["restriction"])
+        if j.get("via"):
+            s += "\n🔎 via " + esc(j["via"])
     return s
 
 

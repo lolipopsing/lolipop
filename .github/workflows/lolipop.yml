@@ -2,7 +2,7 @@ name: Lolipop
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # toutes les 15 min (GitHub peut décaler de quelques minutes)
+    - cron: "*/5 * * * *"    # toutes les 5 min pour les springs ; le reste suit son propre rythme (radar/main.py → rhythm)
   workflow_dispatch: {}       # bouton "Run workflow" pour lancer à la main
 
 permissions:

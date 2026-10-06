@@ -1,6 +1,10 @@
 {
   "timezone": "Europe/Paris",
   "digest_hour": 7,
+  "quiet_hours": {
+    "start": 23,
+    "end": 6
+  },
   "dashboard_url": "",
   "profile": {
     "name": "Andrea Yalenios",
@@ -22,8 +26,15 @@
       "countries": []
     },
     "internship": {
-      "cycles": ["Off-cycle", "Stage"],
-      "countries": ["France", "Royaume-Uni", "États-Unis"]
+      "cycles": [
+        "Off-cycle",
+        "Stage"
+      ],
+      "countries": [
+        "France",
+        "Royaume-Uni",
+        "États-Unis"
+      ]
     }
   }
 }

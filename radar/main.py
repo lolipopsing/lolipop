@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover
 from . import notify
 from .details import analyze, evaluate, fill_details
 from .pages import for_dashboard, scan_pages
-from .classify import STRONG_TARGET, classify, country
+from .classify import SPRING, STRONG_TARGET, classify, country
 from .sources import FETCHERS, workday_posted
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,9 +67,39 @@ def load_searches():
     return out
 
 
-SOURCE_LABEL = {"linkedin": "LinkedIn", "jobteaser": "JobTeaser", "wttj": "Welcome to the Jungle"}
-AGG_EVERY_MIN = {"linkedin": 60, "jobteaser": 120, "wttj": 60}  # job boards: no need to hit them every 15 min
+SOURCE_LABEL = {"linkedin": "LinkedIn", "jobteaser": "JobTeaser", "wttj": "Welcome to the Jungle", "trackr": "TrackR"}
 AGG_CLOSE_DAYS = 10  # a job-board posting not seen for this long is considered closed
+
+# ------------------------------------------------------------------ schedule
+# GitHub runs the scan every 5 minutes. Each source has a rhythm:
+#   "spring"  every run (5 min): TrackR, banks and boutiques that run spring weeks
+#   "normal"  every 15 min: the other career sites (and Oleeo, which shows a bot check when hit too often)
+#   "hourly"  LinkedIn, WTTJ (every 2 h for JobTeaser): job boards rate-limit
+SPRING_CATEGORIES = {"Banque BB", "Boutique M&A"}
+
+
+def rhythm(c, spring_firms):
+    if c["source"] == "trackr":
+        return "spring"
+    if c.get("aggregator"):
+        return "2h" if c["source"] == "jobteaser" else "hourly"
+    if c["source"] == "oleeo":
+        return "normal"
+    if c.get("category") in SPRING_CATEGORIES or c.get("tier") == "1" or c["name"] in spring_firms:
+        return "spring"
+    return "normal"
+
+
+def slot(kind, now=None):
+    """Time window a source was last read in; a source is due when the window has changed."""
+    now = now or datetime.now(timezone.utc)
+    if kind == "hourly":
+        return now.strftime("%Y-%m-%dT%H")
+    if kind == "2h":
+        return now.strftime("%Y-%m-%dT") + str(now.hour // 2)
+    if kind == "normal":
+        return now.strftime("%Y-%m-%dT%H:") + str(now.minute // 15)
+    return None  # spring: every run
 
 
 # ------------------------------------------------------------------ firm matching (job boards -> tracked firms)
@@ -172,6 +202,7 @@ def source_states(state, name):
 
 
 def fingerprint(state):
+    """What must be saved (and committed). "slot" is kept on purpose: it is what spaces out the job boards."""
     s = json.loads(json.dumps(state))
     for v in s["sources"].values():
         v.pop("last_ok", None)
@@ -201,15 +232,23 @@ def fetch_one(c):
 
 
 def fetch_all(companies, state=None):
-    """Career sites in parallel; job boards one query at a time per board (they rate-limit), and only when due."""
-    active = [c for c in companies if c.get("source") in FETCHERS and not c.get("aggregator")]
-    boards = {}
+    """Career sites in parallel; job boards one query at a time per board (they rate-limit).
+    With a state, only the sources that are due (see rhythm) are read."""
+    spring_firms = {p["company"] for p in load_programmes()}
+    due = []
     for c in companies:
-        if c.get("aggregator") and c.get("source") in FETCHERS:
-            last = ((state or {}).get("sources", {}).get(skey(c)) or {}).get("last_ok")
-            every = timedelta(minutes=AGG_EVERY_MIN.get(c["source"], 60) - 5)
-            if state is None or not last or datetime.fromisoformat(last) < datetime.now(timezone.utc) - every:
-                boards.setdefault(c["source"], []).append(c)
+        if c.get("source") not in FETCHERS:
+            continue
+        kind = rhythm(c, spring_firms)
+        if state is not None and kind != "spring":
+            if ((state.get("sources", {}).get(skey(c)) or {}).get("slot")) == slot(kind):
+                continue
+        due.append(c)
+    active = [c for c in due if not c.get("aggregator") or c["source"] == "trackr"]
+    boards = {}
+    for c in due:
+        if c.get("aggregator") and c["source"] != "trackr":
+            boards.setdefault(c["source"], []).append(c)
 
     def board_run(cs):
         out = []
@@ -221,7 +260,13 @@ def fetch_all(companies, state=None):
     with cf.ThreadPoolExecutor(16) as ex:
         runs = [ex.submit(board_run, cs) for cs in boards.values()]
         results = list(ex.map(fetch_one, active))
-        return results + [r for f in runs for r in f.result()]  # job boards last: direct sources win duplicates
+        out = results + [r for f in runs for r in f.result()]  # job boards last: direct sources win duplicates
+    for c, ok, _, _ in out:
+        if ok and state is not None:
+            kind = rhythm(c, spring_firms)
+            if kind != "spring":
+                state["sources"].setdefault(skey(c), {"fails": 0})["slot"] = slot(kind)
+    return out
 
 
 # ------------------------------------------------------------------ scan
@@ -250,6 +295,7 @@ def scan():
     # Same posting seen on a career site and on LinkedIn / JobTeaser / WTTJ: keep one.
     titles = {(j["company"], norm_title(j["title"])): j["id"] for j in jobs.values() if not j.get("closed")}
 
+    seeded_springs = []  # first read of TrackR: what is already open, sent once as a summary
     for c, ok, payload, secs in fetch_all(companies, state):
         name, sk = c["name"], skey(c)
         src = state["sources"].setdefault(sk, {"fails": 0})
@@ -279,8 +325,14 @@ def scan():
                                             internship=r.get("internship", False), strict=agg and firm["category"] == "Autre")
             if not level:
                 continue
+            if r.get("spring"):  # listed on a spring-week tracker
+                cycle = "Spring / Insight"
             jid = hashlib.sha1((f"{c['source']}|{r['key']}" if agg else f"{name}|{r['key']}").encode()).hexdigest()[:16]
             twin = titles.get((company, norm_title(r["title"])))
+            if agg and not twin:  # "2027 IB Spring Week Programme" vs "... Programme - London" on the firm's own site
+                nt = norm_title(r["title"])
+                twin = next((i for (co, t), i in titles.items() if co == company and len(nt) >= 15 and len(t) >= 15
+                             and (nt in t or t in nt)), None)
             if agg and twin and twin != jid:
                 continue  # already known from the firm's own site (or another board)
             if not agg and twin and twin != jid and jobs.get(twin, {}).get("via"):
@@ -295,7 +347,7 @@ def scan():
                     j["skey"] = sk
                 if r.get("description") and "details" not in j:
                     j["details"] = analyze(clean_html(r["description"]), r["title"])
-                for k in ("deadline", "event"):
+                for k in ("deadline", "event", "restriction"):
                     if r.get(k):
                         j[k] = r[k]
                 if r.get("posted") and not j.get("posted"):
@@ -312,13 +364,15 @@ def scan():
                 jobs[jid]["via"] = SOURCE_LABEL.get(c["source"], c["source"])
             if r.get("description"):
                 jobs[jid]["details"] = analyze(clean_html(r["description"]), r["title"])
-            for k in ("deadline", "event"):
+            for k in ("deadline", "event", "restriction"):
                 if r.get(k):
                     jobs[jid][k] = r[k]
             if not seeding:
                 new.append(jobs[jid])
+            elif c["source"] == "trackr" and not first_run:
+                seeded_springs.append(jobs[jid])
         for j in jobs.values():
-            if agg:
+            if agg and c["source"] != "trackr":
                 break  # a search only shows recent postings: absence means nothing (see the job-board expiry below)
             if j.get("skey", primary.get(j["company"])) == sk and j["id"] not in seen_now and not j.get("closed"):
                 j["missing"] = j.get("missing", 0) + 1
@@ -328,7 +382,7 @@ def scan():
 
     board_cutoff = (datetime.now(timezone.utc) - timedelta(days=AGG_CLOSE_DAYS)).isoformat()
     for j in jobs.values():
-        if j.get("via") and not j.get("closed") and (j.get("last_seen") or j["first_seen"]) < board_cutoff:
+        if j.get("via") and j.get("source") != "trackr" and not j.get("closed") and (j.get("last_seen") or j["first_seen"]) < board_cutoff:
             j["closed"] = now
 
     fill_posted_dates(jobs)
@@ -346,8 +400,21 @@ def scan():
         welcome(cfg, jobs)
         state["initialized"] = True
     else:
-        instant(cfg, [j for j in new if fit(j, cfg)])
-        notify_pages(cfg, page_changes)
+        opened = sorted([j for j in seeded_springs if fit(j, cfg)], key=sort_key)
+        if opened:
+            notify.send(f"🌸 <b>TrackR branché : {len(opened)} spring(s) déjà ouverte(s) pour toi</b>\n\n"
+                        + "\n\n".join(notify.job_line(j) for j in opened[:30]) + dash_link(cfg))
+        mine = [j for j in new if fit(j, cfg)]
+        if quiet(cfg):  # night: springs right away, the rest at the end of the night
+            instant(cfg, [j for j in mine if is_spring(j)])
+            queue = state.setdefault("night_queue", {"jobs": [], "pages": []})
+            queue["jobs"] += [j["id"] for j in mine if not is_spring(j)]
+            notify_pages(cfg, [p for p in page_changes if spring_page_change(p)])
+            queue["pages"] += [p for p in page_changes if not spring_page_change(p)]
+        else:
+            morning_flush(cfg, state)
+            instant(cfg, mine)
+            notify_pages(cfg, page_changes)
 
     lt = local_now(cfg)
     if lt.hour >= cfg.get("digest_hour", 7) and state.get("last_digest") != lt.date().isoformat():
@@ -359,6 +426,37 @@ def scan():
         print(f"État mis à jour ({len(new)} nouvelles offres).")
     else:
         print("Aucun changement.")
+
+
+def is_spring(j):
+    return j.get("cycle") == "Spring / Insight"
+
+
+def spring_page_change(p):
+    return any(SPRING.search(l) for l in p.get("added", []) + p.get("removed", []))
+
+
+def quiet(cfg):
+    """Quiet hours (config.json -> quiet_hours, local time): only springs are sent."""
+    q = cfg.get("quiet_hours")
+    if not q:
+        return False
+    h, start, end = local_now(cfg).hour, q.get("start", 23), q.get("end", 6)
+    return (h >= start or h < end) if start > end else start <= h < end
+
+
+def morning_flush(cfg, state):
+    """Send what was held back during the night, in one message."""
+    queue = state.pop("night_queue", None)
+    if not queue:
+        return
+    jobs = sorted([state["jobs"][i] for i in queue.get("jobs", []) if i in state["jobs"] and not state["jobs"][i].get("closed")],
+                  key=sort_key)
+    if jobs:
+        body = "\n\n".join(notify.job_line(j) for j in jobs[:30])
+        more = f"\n\n… et {len(jobs) - 30} autres." if len(jobs) > 30 else ""
+        notify.send(f"🌙 <b>Pendant la nuit : {len(jobs)} nouvelle(s) offre(s) pour toi</b>\n\n{body}{more}{dash_link(cfg)}")
+    notify_pages(cfg, queue.get("pages", []))
 
 
 def clean_html(s):
@@ -469,7 +567,8 @@ def instant(cfg, new):
     new = sorted(new, key=sort_key)
     if len(new) <= MAX_INSTANT:
         for j in new:
-            notify.send("🔥 <b>Nouvelle offre</b>\n" + notify.job_line(j))
+            head = "🌸 <b>Nouvelle spring</b>" if is_spring(j) else "🔥 <b>Nouvelle offre</b>"
+            notify.send(head + "\n" + notify.job_line(j))
     else:
         body = "\n\n".join(notify.job_line(j) for j in new[:30])
         more = f"\n\n… et {len(new) - 30} autres." if len(new) > 30 else ""

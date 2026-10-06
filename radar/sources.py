@@ -462,7 +462,29 @@ def wttj(src):
     return out
 
 
-AGGREGATORS = {"linkedin": linkedin, "jobteaser": jobteaser, "wttj": wttj}
+def trackr(src):
+    """TrackR (app.the-trackr.com) public tracker API. source_id: "region|industry|season|type",
+    e.g. "UK|Finance|2027|spring-weeks". Returns only programmes that are open now (opening date passed,
+    closing date not passed): a programme appearing here = it just opened."""
+    region, industry, season, kind = src["source_id"].split("|")
+    d = get_json(f"https://api.the-trackr.com/programmes?region={quote(region)}&industry={quote(industry)}"
+                 f"&season={quote(season)}&type={quote(kind)}")
+    today = datetime.now(timezone.utc).date().isoformat()
+    out = []
+    for p in d.get("programmes", []):
+        opens, closes = _date(p.get("openingDate")), _date(p.get("closingDate"))
+        if not opens or opens > today or (closes and closes < today):
+            continue
+        company = (p.get("company") or {}).get("name") or p.get("companyId") or ""
+        url = re.sub(r"[?&]utm_[^&]+", "", p.get("url") or "") or "https://app.the-trackr.com/uk-finance/" + kind
+        out.append({"key": p["id"], "title": p.get("name", ""), "company": company,
+                    "location": ", ".join(p.get("locations") or []) or ("London, UK" if region == "UK" else region),
+                    "url": url, "posted": opens, "deadline": closes, "internship": True,
+                    "spring": kind == "spring-weeks", "restriction": p.get("eligibility") or None})
+    return out
+
+
+AGGREGATORS = {"linkedin": linkedin, "jobteaser": jobteaser, "wttj": wttj, "trackr": trackr}
 
 
 FETCHERS = {

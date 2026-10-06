@@ -1,6 +1,6 @@
 # 🍭 Lolipop
 
-Le radar de stages d'Andrea (EDHEC, Master in Finance, promo 2029). Il surveille **toutes les 15 minutes** les sites carrières de ~245 banques, boutiques M&A, fonds de PE / dette privée et investisseurs institutionnels, plus **LinkedIn, JobTeaser et Welcome to the Jungle**. Il t'envoie une notification Telegram dès qu'une offre qui te correspond est publiée.
+Le radar de stages d'Andrea (EDHEC, Master in Finance, promo 2029). Il surveille **toutes les 5 minutes** les springs (et toutes les 15 minutes le reste) les sites carrières de ~245 banques, boutiques M&A, fonds de PE / dette privée et investisseurs institutionnels, plus **LinkedIn, JobTeaser et Welcome to the Jungle**. Il t'envoie une notification Telegram dès qu'une offre qui te correspond est publiée.
 
 À l'origine, c'est un fork de « Radar Stages ».
 
@@ -9,6 +9,8 @@ Le radar de stages d'Andrea (EDHEC, Master in Finance, promo 2029). Il surveille
   - les **stages / off-cycle** en France, au Royaume-Uni et aux États-Unis qui démarrent entre juin et septembre 2027 ;
   - jamais une offre non éligible pour ton profil.
 - 🔥 **Notification instantanée** pour chaque nouvelle offre « pour toi ».
+- 🌸 **Springs en priorité** : TrackR (UK Finance Spring Weeks) et les sites des banques et boutiques sont relus **toutes les 5 minutes**, jour et nuit.
+- 🌙 **Nuit calme (23 h – 6 h)** : seules les springs sont envoyées ; le reste arrive en un seul message à 6 h (`config.json` → `quiet_hours`).
 - ☀️ **Récap à 7 h** : les nouveautés pour toi, les autres offres ciblées, les deadlines, les springs attendues et les sources en panne.
 - 🌐 **Sites d'offres** : LinkedIn, JobTeaser et WTTJ couvrent les boîtes sans plateforme lisible (BNP Paribas, SG, Natixis, UBS, Tikehau, Bpifrance, boutiques…). Les doublons avec le site de la boîte sont supprimés, et les recherches se règlent dans `searches.csv`.
 - 📊 **Tableau de bord** : « Pour toi », Nouveautés, Tableau, Springs 2027, Pages étudiantes, Calendrier, Candidatures et Réseau.
@@ -57,6 +59,8 @@ Onglet **Actions** → active les workflows → **Lolipop → Run workflow**. De
 | Surveiller une spring / un programme | une ligne dans `programmes.csv` |
 | Surveiller une page « Students » | une ligne dans `pages.csv` |
 | Changer l'heure du récap | `config.json` → `digest_hour` |
+| Changer la nuit calme | `config.json` → `quiet_hours` (`start`, `end`) |
+| Suivre un autre onglet TrackR | une ligne `trackr,UK|Finance|2027|off-cycle-internships,,…` dans `searches.csv` |
 | Lancer un scan tout de suite | Actions → Lolipop → Run workflow |
 | Tester en local | `python3 -m radar test` ou `python3 -m radar test Lazard KKR` |
 | Lancer les tests | `python3 -m unittest discover -s tests -t .` |
@@ -68,7 +72,7 @@ Elles sont enregistrées **dans ton navigateur**, jamais sur GitHub. Pour les pa
 
 ## Comment ça marche
 - `radar/sources.py` lit les plateformes de recrutement : Workday, Oracle, Greenhouse, Lever, Oleeo, SmartRecruiters, Recruitee, Teamtailor, Ashby, Pinpoint, Workable…, les API de Goldman Sachs et Deutsche Bank, ainsi que LinkedIn, JobTeaser et WTTJ.
-- Les sites d'offres sont interrogés au plus une fois par heure (deux heures pour JobTeaser) pour éviter les blocages.
+- Rythmes (`radar/main.py` → `rhythm`) : TrackR et les banques / boutiques toutes les 5 min, les autres sites carrières toutes les 15 min, LinkedIn et WTTJ toutes les heures, JobTeaser toutes les 2 h. GitHub peut décaler les lancements de quelques minutes quand ses serveurs sont chargés.
 - `radar/classify.py` décide si une offre est un stage ciblé. Les cas pièges sont couverts par `tests/test_classify.py`.
 - Une offre jamais vue déclenche une notification. Une offre absente 3 scans de suite est marquée fermée ; pour LinkedIn, JobTeaser et WTTJ, c'est au bout de 10 jours sans apparaître.
 - Si une boîte change de site, elle apparaît « en panne » dans le récap du matin : il suffit de corriger sa ligne dans `companies.csv` (ou de me le demander).
