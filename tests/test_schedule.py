@@ -44,5 +44,19 @@ class RhythmTest(unittest.TestCase):
         self.assertIsNone(main.slot("spring", t))
 
 
+class SpringAlarmTest(unittest.TestCase):
+    def test_five_notifications_for_a_new_spring(self):
+        sent = []
+        spring = {"id": "1", "company": "Rothschild & Co", "title": "2027 Spring Insight Programme", "url": "https://x",
+                  "tier": "1", "cycle": "Spring / Insight", "level": "A", "region": "London / UK", "category": "Boutique M&A"}
+        other = dict(spring, id="2", title="Off-cycle M&A", cycle="Off-cycle")
+        with mock.patch.object(main.notify, "send", side_effect=sent.append), mock.patch.object(main, "ALARM_GAP_SEC", 0):
+            main.instant({"spring_alarm": 5}, [spring])
+            self.assertEqual(len(sent), 5)
+            sent.clear()
+            main.instant({"spring_alarm": 5}, [other])
+            self.assertEqual(len(sent), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

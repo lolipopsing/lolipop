@@ -33,6 +33,7 @@ DASH_PATH = os.path.join(ROOT, "docs", "jobs.json")
 MISSING_BEFORE_CLOSED = 3     # scans in a row without the posting before we call it closed
 KEEP_CLOSED_DAYS = 30
 MAX_INSTANT = 10              # above this, new offers are grouped in one message
+ALARM_GAP_SEC = 8             # between two "spring" pings
 SCHEMA = 2                    # bump when sources change a lot, to re-seed silently once
 
 
@@ -573,6 +574,19 @@ def instant(cfg, new):
         body = "\n\n".join(notify.job_line(j) for j in new[:30])
         more = f"\n\n… et {len(new) - 30} autres." if len(new) > 30 else ""
         notify.send(f"🔥 <b>{len(new)} nouvelles offres ciblées</b>\n\n{body}{more}{dash_link(cfg)}")
+    spring_alarm(cfg, [j for j in new if is_spring(j)])
+
+
+def spring_alarm(cfg, springs):
+    """New spring = wake me up: after the offer itself, a few short pings (config.json -> spring_alarm,
+    total number of notifications, 1 = no extra ping), spaced so the phone rings several times."""
+    total = int(cfg.get("spring_alarm", 1))
+    if not springs or total <= 1:
+        return
+    names = ", ".join(dict.fromkeys(j["company"] for j in springs))
+    for i in range(2, total + 1):
+        time.sleep(ALARM_GAP_SEC)
+        notify.send(f"🚨🌸 <b>SPRING OUVERTE</b> — {notify.esc(names)} ({i}/{total})")
 
 
 def _d(s):

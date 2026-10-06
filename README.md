@@ -9,7 +9,7 @@ Le radar de stages d'Andrea (EDHEC, Master in Finance, promo 2029). Il surveille
   - les **stages / off-cycle** en France, au Royaume-Uni et aux États-Unis qui démarrent entre juin et septembre 2027 ;
   - jamais une offre non éligible pour ton profil.
 - 🔥 **Notification instantanée** pour chaque nouvelle offre « pour toi ».
-- 🌸 **Springs en priorité** : TrackR (UK Finance Spring Weeks) et les sites des banques et boutiques sont relus **toutes les 5 minutes**, jour et nuit.
+- 🌸 **Springs en priorité** : TrackR (UK Finance Spring Weeks) et les sites des banques et boutiques sont relus **toutes les 5 minutes**, jour et nuit. Chaque nouvelle spring déclenche **5 notifications** espacées de quelques secondes pour te réveiller (`config.json` → `spring_alarm`).
 - 🌙 **Nuit calme (23 h – 6 h)** : seules les springs sont envoyées ; le reste arrive en un seul message à 6 h (`config.json` → `quiet_hours`).
 - ☀️ **Récap à 7 h** : les nouveautés pour toi, les autres offres ciblées, les deadlines, les springs attendues et les sources en panne.
 - 🌐 **Sites d'offres** : LinkedIn, JobTeaser et WTTJ couvrent les boîtes sans plateforme lisible (BNP Paribas, SG, Natixis, UBS, Tikehau, Bpifrance, boutiques…). Les doublons avec le site de la boîte sont supprimés, et les recherches se règlent dans `searches.csv`.
