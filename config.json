@@ -1,0 +1,29 @@
+{
+  "timezone": "Europe/Paris",
+  "digest_hour": 7,
+  "dashboard_url": "",
+  "profile": {
+    "name": "Andrea Yalenios",
+    "school": "EDHEC Business School — PGE, Master in Finance (MSc Corporate Finance & Banking)",
+    "graduation_year": 2029,
+    "available_from": "2027-06",
+    "available_to": "2027-09",
+    "nationality": "FR",
+    "languages": {
+      "français": "native",
+      "anglais": "fluent",
+      "grec": "fluent",
+      "allemand": "intermediate"
+    }
+  },
+  "targets": {
+    "spring": {
+      "enabled": true,
+      "countries": []
+    },
+    "internship": {
+      "cycles": ["Off-cycle", "Stage"],
+      "countries": ["France", "Royaume-Uni", "États-Unis"]
+    }
+  }
+}
