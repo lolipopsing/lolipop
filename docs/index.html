@@ -725,6 +725,7 @@ function calEvents() {
     if (v.s === "À postuler" && j.deadline) ev.push({d: j.deadline, t: "me", label: `${j.company} — à envoyer avant la deadline`, url: j.url, pre: "À envoyer"});
   }
   for (const c of NET.contacts) if (c.next && c.next.date) ev.push({d: c.next.date, t: "me", label: `${fullName(c)} — ${c.next.label}`, url: "#", pre: "Réseau"});
+  for (const [name, n] of Object.entries(NET.firms || {})) if (n.next && n.next.date) ev.push({d: n.next.date, t: "me", label: `${name} — ${n.next.label || "à faire"}`, url: "#", pre: "Boîte"});
   for (const e of DATA.events || []) {
     const st = evStatus(e.id);
     if (e.date && st !== "ignore" && (e.notify || st)) ev.push({d: e.date, t: "evt", label: `${e.org ? e.org + " — " : ""}${e.title}`, url: e.url, pre: st === "inscrit" ? "Inscrit·e" : "Event"});
@@ -775,7 +776,8 @@ function renderMine() {
     const g = mine.filter(j => statusOf(j.id) === s).sort((a, b) => (ST[b.id].d || "").localeCompare(ST[a.id].d || ""));
     return `<div class="col"><h3><span class="badge ${PIPE_STYLE[s]}">${s}</span><span class="c">${g.length}</span></h3>
       ${g.map(j => `<div class="kcard"><div class="co">${esc(j.company)}</div>
-        <a class="t" href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
+        <a class="t" href="${esc(j.url || "#")}" target="_blank" rel="noopener">${esc(j.title)}</a>
+        ${j.stage || (j.next && j.next.label) ? `<div class="sub">${esc([j.stage, j.next && j.next.label ? (j.next.date ? fmt(j.next.date) + " · " : "") + j.next.label : ""].filter(Boolean).join(" — "))}</div>` : ""}
         <div class="f"><span>${fmt((ST[j.id].d || "").slice(0, 10))}${j.closed ? " · fermée" : ""}${j.deadline && !j.closed ? ` · DL ${fmt(j.deadline)}` : ""}</span>${statusSelect(j.id)}</div></div>`).join("")}
     </div>`;
   }).join("")}</div>`;
@@ -980,10 +982,21 @@ try { NET = Object.assign({contacts: [], templates: null, firms: {}, extraFirms:
 // NET.extraFirms = boîtes que tu ajoutes toi-même (non suivies par le radar) : [{name, category}]
 const firmNote = name => NET.firms[name] || (NET.firms[name] = {prio: "", notes: "", deals: [], updated: null});
 const touchFirm = name => { firmNote(name).updated = new Date().toISOString(); saveNet(); };
-const allFirms = () => [...(DATA.companies || []).map(c => ({name: c.name, category: c.category, tier: c.tier, country: c.country})),
-                        ...(NET.extraFirms || []).map(f => ({name: f.name, category: f.category || "Ajoutée par toi", tier: "", country: ""}))];
-const MYPRIO = [["1", "Priorité 1", "b-ok"], ["2", "Priorité 2", "b-info"], ["3", "Priorité 3", "b-grey"]];
-let NCARNET = {q: "", prio: "", cat: "", only: ""};
+function allFirms() {  // boîtes suivies par le radar + celles de ton carnet, de tes contacts et des fiches d'infos
+  const out = new Map();
+  for (const c of DATA.companies || []) out.set(c.name, {name: c.name, category: c.category, tier: c.tier, country: c.country});
+  for (const f of NET.extraFirms || []) if (!out.has(f.name)) out.set(f.name, {name: f.name, category: f.category || "Ajoutée par toi", tier: "", country: ""});
+  const extra = [...Object.keys(NET.firms || {}), ...NET.contacts.map(c => c.firm), ...Object.keys(FIRMINFO)];
+  for (const n of extra) if (n && !out.has(n)) out.set(n, {name: n, category: (FIRMINFO[n] || {}).type || "Autre", tier: "", country: ""});
+  return [...out.values()];
+}
+const MYPRIO = [["1", "A · réseau approfondi", "b-ok"], ["2", "B · 1–2 contacts puis candidature", "b-info"], ["3", "C · candidature directe", "b-grey"]];
+const BANK_STATUS = ["À cibler", "Réseau en cours", "Candidature envoyée", "Process en cours", "Offre", "Refus", "Écartée"];
+const BANK_STATUS_CLS = {"Réseau en cours": "b-brand", "Candidature envoyée": "b-info", "Process en cours": "b-warn", "Offre": "b-ok", "Refus": "b-bad", "Écartée": "b-grey"};
+const RELATION = ["Famille", "Ami / proche", "Professeur", "Alumni EDHEC", "Alumni prépa", "Ancien collègue (ACM / Crédit Mutuel)", "Présenté par un contact", "Contact froid (LinkedIn / email)", "Forum / événement", "Autre"];
+const WARMTH = ["Froid", "Tiède", "Chaud"];
+const effortLetter = p => ({"1": "A", "2": "B", "3": "C"})[p] || "";
+let NCARNET = {q: "", prio: "", cat: "", only: "", status: ""};
 const saveNet = () => { try { localStorage.setItem(NKEY, JSON.stringify(NET)); } catch (e) { alert("Impossible d'enregistrer (stockage du navigateur plein ou bloqué)."); } };
 const NSTAT = [["repere", "Repéré", "b-grey"], ["contacte", "Contacté", "b-brand"], ["repondu", "A répondu", "b-info"],
                ["call", "Call fait", "b-warn"], ["reco", "Recommandé", "b-ok"], ["veille", "En veille", "b-grey"]];
@@ -1211,7 +1224,7 @@ function netContacts(S) {
     <div class="board6">${NSTAT.map(([k, l, cls]) => { const g = list.filter(c => c.status === k);
       return `<div class="col"><h3><span class="badge ${cls}">${l}</span><span class="c">${g.length}</span></h3>
         ${g.slice(0, 40).map(c => `<div class="pcont" data-nopen="${c.id}" style="cursor:pointer"><b>${esc(fullName(c))}</b>${esc(c.firm || c.company || "")}${c.team ? " · " + esc(c.team) : ""}
-          <div class="w"><span>${c.alumni ? "EDHEC" : esc((c.position || "").slice(0, 26))}</span>${c.next && c.next.date ? `<span class="${c.next.date <= S.today ? "urgent" : ""}">${c.next.date <= S.today ? "à faire" : fmt(c.next.date)}</span>` : ""}</div></div>`).join("")}
+          <div class="w"><span>${c.warmth ? ({"Chaud": "🔥 ", "Tiède": "🌤 ", "Froid": "❄️ "})[c.warmth] || "" : ""}${c.alumni ? "EDHEC" : esc((c.position || c.relation || "").slice(0, 26))}</span>${c.next && c.next.date ? `<span class="${c.next.date <= S.today ? "urgent" : ""}">${c.next.date <= S.today ? "à faire" : fmt(c.next.date)}</span>` : ""}</div></div>`).join("")}
         ${g.length > 40 ? `<span class="sub">+ ${g.length - 40} autres (filtre par boîte)</span>` : ""}</div>`; }).join("")}</div>`;
 }
 function netCarnet(S) {
@@ -1219,25 +1232,30 @@ function netCarnet(S) {
   const byFirm = {}; S.C.forEach(c => { if (c.firm) (byFirm[c.firm] = byFirm[c.firm] || []).push(c); });
   const rows = allFirms().map(x => {
     const n = NET.firms[x.name] || {}, offers = openOffersAt(x.name);
-    return {...x, prio: n.prio || "", notes: n.notes || "", deals: (n.deals || []).length, contacts: (byFirm[x.name] || []).length,
+    return {...x, prio: n.prio || "", notes: n.notes || "", status: n.status || "", next: n.next || null, deals: (n.deals || []).length, contacts: (byFirm[x.name] || []).length,
             offers: offers.length, mine: offers.filter(j => j.fit).length, updated: n.updated};
   }).filter(x => (!f.prio || x.prio === f.prio) && (!f.cat || x.category === f.cat)
       && (!f.only || (f.only === "notes" ? x.notes || x.deals : f.only === "contacts" ? x.contacts : x.mine))
-      && (!q || nnorm(`${x.name} ${x.category} ${x.notes}`).includes(q)))
+      && (!NCARNET.status || x.status === NCARNET.status)
+      && (!q || nnorm(`${x.name} ${x.category} ${x.notes} ${(FIRMINFO[x.name] || {}).sectors || ""}`).includes(q)))
     .sort((a, b) => (a.prio || "9").localeCompare(b.prio || "9") || b.mine - a.mine || (a.tier || "9").localeCompare(b.tier || "9") || a.name.localeCompare(b.name));
   const cats = [...new Set(allFirms().map(x => x.category))].sort();
   const prioBadge = p => { const m = MYPRIO.find(([k]) => k === p); return m ? `<span class="badge ${m[2]}">${m[1]}</span>` : '<span class="sub">—</span>'; };
   return `<div class="filters"><input type="search" id="ncq" placeholder="Rechercher une boîte, un mot dans tes notes…" value="${esc(f.q)}">
-      <select id="ncp"><option value="">Toutes mes priorités</option>${MYPRIO.map(([k, l]) => `<option value="${k}" ${f.prio === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <select id="ncp"><option value="">Tous niveaux d'effort</option>${MYPRIO.map(([k, l]) => `<option value="${k}" ${f.prio === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <select id="ncs"><option value="">Tous les statuts</option>${BANK_STATUS.map(k => `<option ${NCARNET.status === k ? "selected" : ""}>${k}</option>`).join("")}</select>
       <select id="ncc"><option value="">Toutes les catégories</option>${cats.map(c => `<option ${f.cat === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
       <select id="nco"><option value="">Toutes les boîtes</option><option value="notes" ${f.only === "notes" ? "selected" : ""}>Avec notes ou deals</option><option value="contacts" ${f.only === "contacts" ? "selected" : ""}>Avec contacts</option><option value="mine" ${f.only === "mine" ? "selected" : ""}>Avec offres pour moi</option></select>
       <span class="spacer"></span><button class="btn ghost" data-naddfirm>+ Ajouter une boîte</button></div>
     <div class="panel"><div class="tablewrap"><table>
-      <thead><tr><th>Boîte</th><th>Catégorie</th><th>Ma priorité</th><th class="num">Contacts</th><th class="num">Deals notés</th><th class="num">Offres pour moi</th><th>Mes notes</th></tr></thead>
+      <thead><tr><th>Boîte</th><th>Catégorie</th><th>Effort</th><th>Statut</th><th class="num">Contacts</th><th class="num">Offres pour moi</th><th>Prochaine action</th><th>E-mail</th></tr></thead>
       <tbody>${rows.slice(0, 300).map(x => `<tr style="cursor:pointer" data-nfirm="${esc(x.name)}">
-        <td class="co">${esc(x.name)}${x.tier === "1" ? ' <span class="tier">★</span>' : ""}</td><td>${esc(x.category)}</td><td>${prioBadge(x.prio)}</td>
-        <td class="num">${x.contacts || "—"}</td><td class="num">${x.deals || "—"}</td><td class="num">${x.mine ? `<b>${x.mine}</b>` : "—"}${x.offers > x.mine ? ` <span class="sub" style="display:inline">(+${x.offers - x.mine})</span>` : ""}</td>
-        <td><span class="sub" style="display:inline">${esc((x.notes || "").split("\n")[0].slice(0, 70))}</span></td></tr>`).join("")}</tbody></table></div></div>
+        <td class="co">${esc(x.name)}${x.tier === "1" ? ' <span class="tier">★</span>' : ""}</td><td>${esc(x.category)}</td>
+        <td>${x.prio ? `<span class="badge ${MYPRIO.find(m => m[0] === x.prio)[2]}" title="${esc(MYPRIO.find(m => m[0] === x.prio)[1])}">${effortLetter(x.prio)}</span>` : '<span class="sub">—</span>'}</td>
+        <td>${x.status ? `<span class="badge ${BANK_STATUS_CLS[x.status] || "b-grey"} b-plain">${esc(x.status)}</span>` : '<span class="sub">—</span>'}</td>
+        <td class="num">${x.contacts || "—"}</td><td class="num">${x.mine ? `<b>${x.mine}</b>` : "—"}${x.offers > x.mine ? ` <span class="sub" style="display:inline">(+${x.offers - x.mine})</span>` : ""}</td>
+        <td>${x.next && (x.next.label || x.next.date) ? `<span class="${x.next.date && x.next.date <= isoDay() ? "urgent" : "sub"}" style="display:inline">${x.next.date ? fmt(x.next.date) + " · " : ""}${esc(x.next.label || "")}</span>` : '<span class="sub">—</span>'}</td>
+        <td><span class="sub" style="display:inline">${esc(((FIRMINFO[x.name] || {}).emails || [])[0] || "")}</span></td></tr>`).join("")}</tbody></table></div></div>
     ${rows.length > 300 ? `<p class="note">${rows.length - 300} autres boîtes : affine la recherche.</p>` : ""}
     <p class="note">Clique sur une boîte pour ouvrir sa fiche : notes, deals qui t'ont marqué, contacts et offres ouvertes.</p>`;
 }
@@ -1255,10 +1273,14 @@ function netFirms(S) {
   return `<div class="filters"><select id="nfirmsel">${options.map(o => `<option ${o === firm ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>
       <span class="sub" style="display:inline">${esc(info.category || "")} · ${people.length} contact${people.length > 1 ? "s" : ""} · ${openOffersAt(firm).length} offre${openOffersAt(firm).length > 1 ? "s" : ""} ciblée${openOffersAt(firm).length > 1 ? "s" : ""} ouverte${openOffersAt(firm).length > 1 ? "s" : ""}</span>
       <span class="spacer"></span><button class="btn sm ghost" data-nnew="${esc(firm)}">+ Contact chez ${esc(firm)}</button></div>
+    ${firmInfoCard(firm, note)}
     <div class="grid3">
       <div class="card"><div class="card-h"><h3>Mes notes</h3><span class="c">${note.updated ? "modifiées " + ago(note.updated) : "pourquoi cette boîte, culture, process, questions à poser…"}</span></div>
         <div style="padding:12px 16px 16px">
-          <label class="fld">Ma priorité<select id="nfprio"><option value="">—</option>${MYPRIO.map(([k, l]) => `<option value="${k}" ${note.prio === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <div class="grid2"><label class="fld">Niveau d'effort<select id="nfprio"><option value="">—</option>${MYPRIO.map(([k, l]) => `<option value="${k}" ${note.prio === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+          <label class="fld">Statut<select id="nfstatus"><option value="">—</option>${BANK_STATUS.map(k => `<option ${note.status === k ? "selected" : ""}>${k}</option>`).join("")}</select></label></div>
+          <div class="grid2"><label class="fld">Prochaine action<input id="nfnext" value="${esc((note.next || {}).label || "")}" placeholder="Relancer X, candidater en décembre…"></label>
+          <label class="fld">Pour le<input type="date" id="nfnextd" value="${esc((note.next || {}).date || "")}"></label></div>
           <textarea id="nfnotes" placeholder="Ex. : équipe mid-cap très active en santé, process = HireVue puis 2 tours, demander à X comment ça se passe en off-cycle…" style="width:100%;min-height:180px;border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit;font-size:13.5px;line-height:1.55;background:var(--surface);color:var(--ink);resize:vertical">${esc(note.notes || "")}</textarea>
           <span class="sub">Enregistré automatiquement.</span></div></div>
       <div class="card"><div class="card-h"><h3>Deals qui m'ont marqué</h3><span class="c">${deals.length}</span><a data-ndeal="">+ Ajouter</a></div>
@@ -1277,6 +1299,20 @@ function netFirms(S) {
         ${offers.length ? offers.map(j => `<div class="mini"><div class="t"><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a><span class="l sub">${esc(j.location || j.country || "")}</span></div><div class="r">${j.fit ? '<span class="badge b-ok b-plain">Pour toi</span>' : ""}${eligBadge(j)}</div></div>`).join("")
           : `<div class="empty">Aucune offre ciblée ouverte en ce moment.</div>`}</div>
     </div>`;
+}
+function firmInfoCard(firm, note) {
+  const f = FIRMINFO[firm] || {}, named = note.named_emails || [];
+  const rows = [["Activité", f.activity], ["Secteurs", f.sectors], ["Recrutement", f.recruiting], ["Calendrier", f.calendar], ["Stages de césure", f.cesure], ["Coordonnées", f.contactInfo], ["Sources", f.sources]].filter(([, v]) => v);
+  if (!rows.length && !f.site && !(f.emails || []).length && !named.length) return "";
+  const mail = e => `<a href="mailto:${esc(e)}">${esc(e)}</a> <button type="button" class="btn sm ghost" data-copy="${esc(e)}" title="Copier">⧉</button>`;
+  return `<div class="card" style="margin-bottom:14px"><div class="card-h"><h3>${esc(firm)}</h3>
+      <span class="c">${esc([f.type, f.segment, f.prestige ? "prestige " + f.prestige + "/5" : ""].filter(Boolean).join(" · "))}</span>
+      ${f.site ? `<a href="${esc(f.site)}" target="_blank" rel="noopener">Site ↗</a>` : ""}${f.careers ? `<a href="${esc(f.careers)}" target="_blank" rel="noopener" style="margin-left:10px">Carrières ↗</a>` : ""}</div>
+    <div style="padding:4px 16px 14px;display:grid;gap:8px">
+      ${(f.emails || []).length ? `<div><b>E-mails publics</b> · ${f.emails.map(mail).join(" · ")}</div>` : ""}
+      ${named.length ? `<details><summary><b>E-mails nominatifs publiés sur leur site</b> (${named.length})</summary><div style="display:grid;gap:4px;margin-top:6px">${named.map(n => `<span>${mail(n.email)} <a class="sub" style="display:inline" href="${esc(n.page)}" target="_blank" rel="noopener">source</a></span>`).join("")}</div></details>` : ""}
+      ${rows.map(([k, v]) => `<div><b>${k}</b><div class="sub" style="white-space:pre-wrap;color:var(--ink-2)">${esc(v)}</div></div>`).join("")}
+    </div></div>`;
 }
 function openDeal(firm, id) {
   const note = firmNote(firm), d = (note.deals || []).find(x => x.id === id) || {id: "", d: isoDay(), title: "", role: "", size: "", url: "", note: "", contacts: []};
@@ -1328,6 +1364,10 @@ function openContact(id, preset = {}) {
     <div class="grid2"><label class="fld">Boîte (suivie par le radar)<input name="firm" list="nfirms" value="${esc(c.firm || "")}" placeholder="${esc(c.company || "")}"></label><label class="fld">Équipe<input name="team" value="${esc(c.team)}" placeholder="M&A, FIG, Buyout…"></label></div>
     <datalist id="nfirms">${firmOpts}</datalist>
     <div class="grid2"><label class="fld">Poste<input name="position" value="${esc(c.position)}"></label><label class="fld">Profil LinkedIn<input name="url" value="${esc(c.url)}"></label></div>
+    <div class="grid2"><label class="fld">Lien avec moi<select name="relation"><option value="">—</option>${RELATION.map(r => `<option ${c.relation === r ? "selected" : ""}>${esc(r)}</option>`).join("")}</select></label>
+      <label class="fld">Chaleur<select name="warmth"><option value="">—</option>${WARMTH.map(r => `<option ${c.warmth === r ? "selected" : ""}>${r}</option>`).join("")}</select></label></div>
+    <label class="fld">Présenté par<select name="introducedBy"><option value="">—</option>${NET.contacts.filter(x => x.id !== c.id).sort((a, b) => fullName(a).localeCompare(fullName(b))).map(x => `<option value="${x.id}" ${c.introducedBy === x.id ? "selected" : ""}>${esc(fullName(x))}${x.firm ? " — " + esc(x.firm) : ""}</option>`).join("")}</select></label>
+    ${introChain(c)}
     <div class="grid2"><label class="fld">Statut<select name="status">${NSTAT.map(([k, l]) => `<option value="${k}" ${c.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="fld">Points communs<input name="common" value="${esc(c.common)}" placeholder="EDHEC, césure, squash…"></label></div>
     <div class="grid2"><label class="fld">Prochaine action<input name="nlabel" value="${esc(c.next ? c.next.label : "")}" placeholder="Relancer, remercier…"></label><label class="fld">Pour le<input type="date" name="ndate" value="${esc(c.next ? c.next.date : "")}"></label></div>
@@ -1343,13 +1383,21 @@ function openContact(id, preset = {}) {
       <button class="btn ghost" value="cancel" formnovalidate>Fermer</button><button class="btn" value="save" data-nsave="${c.id}">Enregistrer</button></div></form>`;
   $("ndlg").showModal();
 }
+function introChain(c) {  // Toi → X → Y → ce contact
+  const chain = []; let cur = c, seen = new Set();
+  while (cur && cur.introducedBy && !seen.has(cur.introducedBy) && chain.length < 6) {
+    seen.add(cur.introducedBy); cur = NET.contacts.find(x => x.id === cur.introducedBy); if (cur) chain.unshift(fullName(cur));
+  }
+  return chain.length ? `<div class="path" style="margin:0 0 10px"><span class="n you">Toi</span>→${chain.map(n => `<span class="n">${esc(n)}</span>→`).join("")}<span class="n goal">${esc(fullName(c))}</span></div>` : "";
+}
 function saveContact(id) {
   const f = $("nform"), v = Object.fromEntries(new FormData(f));
   let c = NET.contacts.find(x => x.id === id);
   if (!c) { c = {id: "c" + Date.now().toString(36), company: v.firm, log: [], source: "manuel", created: new Date().toISOString()}; NET.contacts.push(c); }
   const prev = c.status;
   Object.assign(c, {first: v.first.trim(), last: v.last.trim(), firm: v.firm.trim(), team: v.team.trim(), position: v.position.trim(), url: v.url.trim(),
-                    common: v.common.trim(), notes: v.notes, alumni: !!v.alumni, status: v.status});
+                    common: v.common.trim(), notes: v.notes, alumni: !!v.alumni, status: v.status,
+                    relation: v.relation || "", warmth: v.warmth || "", introducedBy: v.introducedBy || ""});
   if (!c.company) c.company = c.firm;
   if (v.ndate || v.nlabel) c.next = {date: v.ndate || addDays(3), label: v.nlabel || "À faire"}; else c.next = null;
   if (prev !== c.status) {
@@ -1391,6 +1439,7 @@ document.addEventListener("click", e => {
   if ((el = hit("[data-nmsg]"))) { NMSG.contact = el.dataset.nmsg; NSUB = "messages"; $("ndlg").close(); render(); return; }
   if (hit("[data-ncopy]")) { const ta = $("nmtext"); ta.select(); navigator.clipboard ? navigator.clipboard.writeText(ta.value) : document.execCommand("copy"); hit("[data-ncopy]").textContent = "Copié ✓"; return; }
   if ((el = hit("#ndo")) && !el.disabled) { doImport(); return; }
+  if ((el = hit("[data-copy]"))) { navigator.clipboard && navigator.clipboard.writeText(el.dataset.copy); el.textContent = "✓"; return; }
   if ((el = hit("[data-ndeal]"))) { openDeal(NFIRM, el.dataset.ndeal); return; }
   if ((el = hit("[data-ndealsave]"))) { e.preventDefault(); if (!$("dform").reportValidity()) return; saveDeal(NFIRM, el.dataset.ndealsave); $("ndlg").close(); return; }
   if ((el = hit("[data-ndealdel]"))) { if (confirm("Supprimer ce deal ?")) { const n = firmNote(NFIRM); n.deals = n.deals.filter(x => x.id !== el.dataset.ndealdel); touchFirm(NFIRM); $("ndlg").close(); render(); } return; }
@@ -1413,6 +1462,9 @@ document.addEventListener("change", e => {
   if (e.target.id === "evsrc") { EVF.source = e.target.value; render(); }
   if (e.target.id === "evfree") { EVF.free = e.target.checked; render(); }
   if (e.target.id === "nfprio") { firmNote(NFIRM).prio = e.target.value; touchFirm(NFIRM); render(); }
+  if (e.target.id === "nfstatus") { firmNote(NFIRM).status = e.target.value; touchFirm(NFIRM); render(); }
+  if (e.target.id === "nfnext" || e.target.id === "nfnextd") { const n = firmNote(NFIRM); n.next = {label: $("nfnext").value.trim(), date: $("nfnextd").value}; if (!n.next.label && !n.next.date) n.next = null; touchFirm(NFIRM); render(); }
+  if (e.target.id === "ncs") { NCARNET.status = e.target.value; render(); }
   if (e.target.id === "nfnotes") { firmNote(NFIRM).notes = e.target.value; touchFirm(NFIRM); }
   if (e.target.id === "ncp") { NCARNET.prio = e.target.value; render(); }
   if (e.target.id === "ncc") { NCARNET.cat = e.target.value; render(); }
@@ -1535,7 +1587,12 @@ document.addEventListener("change", async e => {
         const cur = firmNote(name);
         if (!cur.notes) cur.notes = n.notes || ""; else if (n.notes && !cur.notes.includes(n.notes)) cur.notes += "\n" + n.notes;
         cur.prio = cur.prio || n.prio || "";
+        for (const k of ["status", "next", "named_emails"]) if (n[k] && !cur[k]) cur[k] = n[k];
         const ids = new Set(cur.deals.map(d => d.id)); cur.deals.push(...(n.deals || []).filter(d => !ids.has(d.id)));
+      }
+      if (data.reseau.templates) {
+        const have = new Set((NET.templates || DEFAULT_TEMPLATES).map(t => t.id));
+        NET.templates = (NET.templates || DEFAULT_TEMPLATES.slice()).concat(data.reseau.templates.filter(t => !have.has(t.id)));
       }
       const names = new Set((NET.extraFirms || []).map(f => f.name));
       NET.extraFirms = (NET.extraFirms || []).concat((data.reseau.extraFirms || []).filter(f => !names.has(f.name)));
@@ -1596,7 +1653,9 @@ document.addEventListener("visibilitychange", () => {  // retour sur l'onglet / 
   if (document.visibilityState === "visible" && DATA.updated) { fetchLastScan(); loadData(true); }
 });
 
+let FIRMINFO = {};  // docs/firms.json : recherche sur chaque boîte (activité, process, calendrier, e-mails publics)
 function loadData(refresh) {
+  fetch("firms.json?" + Date.now()).then(r => r.ok ? r.json() : {}).then(f => { FIRMINFO = f || {}; if (refresh !== false) render(); }).catch(() => {});
   return fetch("jobs.json?" + Date.now()).then(r => r.json()).then(d => {
     DATA = d; DATA.programmes = d.programmes || [];
     showUpdated();

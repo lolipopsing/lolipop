@@ -439,22 +439,35 @@ def jobteaser(src):
 _WTTJ = {}
 
 
-def wttj(src):
-    """Welcome to the Jungle (Algolia search used by their site). source_id: "keywords"."""
+def _wttj_query(query, filters):
     if not _WTTJ:
         env = get_text("https://www.welcometothejungle.com/api/env")
         _WTTJ.update(re.findall(r'"(PUBLIC_ALGOLIA_APPLICATION_ID|PUBLIC_ALGOLIA_API_KEY_CLIENT)"\s*:\s*"([^"]+)"', env))
     app, key = _WTTJ["PUBLIC_ALGOLIA_APPLICATION_ID"], _WTTJ["PUBLIC_ALGOLIA_API_KEY_CLIENT"]
-    d = post_json(f"https://{app.lower()}-dsn.algolia.net/1/indexes/wttj_jobs_production_fr_published_at_desc/query",
-                  {"query": src["source_id"], "hitsPerPage": 100, "filters": "contract_type:internship"},
-                  headers={"X-Algolia-Application-Id": app, "X-Algolia-API-Key": key,
-                           "Origin": "https://www.welcometothejungle.com", "Referer": "https://www.welcometothejungle.com/"})
+    return post_json(f"https://{app.lower()}-dsn.algolia.net/1/indexes/wttj_jobs_production_fr_published_at_desc/query",
+                     {"query": query, "hitsPerPage": 100, "filters": filters},
+                     headers={"X-Algolia-Application-Id": app, "X-Algolia-API-Key": key,
+                              "Origin": "https://www.welcometothejungle.com", "Referer": "https://www.welcometothejungle.com/"})
+
+
+def wttj_company(src):
+    """One firm's Welcome to the Jungle page (all its postings). source_id: WTTJ company slug."""
+    return _wttj_hits(_wttj_query("", f'organization.slug:"{src["source_id"]}"'))
+
+
+def wttj(src):
+    """Welcome to the Jungle (Algolia search used by their site), internships only. source_id: "keywords"."""
+    return _wttj_hits(_wttj_query(src["source_id"], "contract_type:internship"))
+
+
+def _wttj_hits(d):
     out = []
     for h in d.get("hits", []):
         org = h.get("organization") or {}
         offices = h.get("offices") or [{}]
         loc = ", ".join(x for x in [offices[0].get("city"), offices[0].get("country")] if x)
-        out.append({"key": h.get("reference") or h["objectID"], "title": h.get("name", ""), "company": org.get("name", ""), "internship": True,
+        out.append({"key": h.get("reference") or h["objectID"], "title": h.get("name", ""), "company": org.get("name", ""),
+                    "internship": h.get("contract_type") == "internship",
                     "location": loc, "posted": _date(h.get("published_at")),
                     "url": f"https://www.welcometothejungle.com/fr/companies/{org.get('slug')}/jobs/{h.get('slug')}",
                     "description": " ".join(filter(None, [h.get("summary"), h.get("key_missions") and " ".join(h["key_missions"]),
@@ -492,6 +505,6 @@ FETCHERS = {
     "workday": workday, "oracle": oracle, "greenhouse": greenhouse, "lever": lever, "ashby": ashby,
     "smartrecruiters": smartrecruiters, "recruitee": recruitee, "workable": workable, "pinpoint": pinpoint,
     "rss": rss, "teamtailor": rss, "goldman": goldman, "eightfold": eightfold, "beesite": beesite,
-    "oleeo": oleeo, "html": html_links, "watch": watch,
+    "oleeo": oleeo, "html": html_links, "watch": watch, "wttj_company": wttj_company,
     **AGGREGATORS,
 }

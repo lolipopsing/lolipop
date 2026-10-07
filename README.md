@@ -56,6 +56,7 @@ Onglet **Actions** → active les workflows → **Lolipop → Run workflow**. De
 |---|---|
 | Changer mes critères (pays, cycles, springs) | `config.json` → `targets` |
 | Mettre à jour mon profil (diplôme, dates, langues) | `config.json` → `profile` |
+| Infos sur une boîte (activité, process, calendrier, e-mails publics) | `docs/firms.json` (affichées dans Réseau → Fiche boîte) |
 | Ajouter / retirer une boîte | `companies.csv` (`source = manuel` = affichée mais pas scannée) |
 | Ajouter une recherche LinkedIn / JobTeaser / WTTJ | une ligne dans `searches.csv` (`source,query,location`) |
 | Surveiller une spring / un programme | une ligne dans `programmes.csv` |
@@ -71,7 +72,7 @@ Onglet **Actions** → active les workflows → **Lolipop → Run workflow**. De
 **Ciblée (A)** = stage, spring ou off-cycle en M&A, IB, PE, dette privée, restructuring, ECM/DCM, infra, immobilier… ou tout stage « métier » chez une boutique ou un fonds. **Pour toi** = offre ciblée qui respecte aussi tes critères `targets` et ton éligibilité. **Autre (B)** = stage hors cible : visible dans le tableau de bord, jamais notifié.
 
 ## Tes données perso (réseau, carnet, candidatures)
-Elles sont enregistrées **dans ton navigateur**, jamais sur GitHub. Pour les passer sur ton téléphone ou les sauvegarder : **Infos générales → Exporter**, puis **Importer** sur l'autre appareil. Exporte régulièrement.
+Elles sont enregistrées **dans ton navigateur**, jamais sur GitHub (le dépôt est public : aucun contact, e-mail nominatif ou note perso ne doit y entrer). Pour les passer sur ton téléphone ou les sauvegarder : **Infos générales → Exporter**, puis **Importer** sur l'autre appareil. Exporte régulièrement.
 
 ## Comment ça marche
 - `radar/sources.py` lit les plateformes de recrutement : Workday, Oracle, Greenhouse, Lever, Oleeo, SmartRecruiters, Recruitee, Teamtailor, Ashby, Pinpoint, Workable…, les API de Goldman Sachs et Deutsche Bank, ainsi que LinkedIn, JobTeaser et WTTJ.
