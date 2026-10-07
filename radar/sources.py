@@ -480,7 +480,8 @@ def trackr(src):
         out.append({"key": p["id"], "title": p.get("name", ""), "company": company,
                     "location": ", ".join(p.get("locations") or []) or ("London, UK" if region == "UK" else region),
                     "url": url, "posted": opens, "deadline": closes, "internship": True,
-                    "spring": kind == "spring-weeks", "restriction": p.get("eligibility") or None})
+                    "spring": kind == "spring-weeks", "restriction": p.get("eligibility") or None,
+                    "categories": p.get("categories") or []})
     return out
 
 

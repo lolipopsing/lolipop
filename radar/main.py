@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover
 from . import events, notify
 from .details import analyze, evaluate, fill_details
 from .pages import for_dashboard, scan_pages
-from .classify import STRONG_TARGET, classify, country
+from .classify import STRONG_TARGET, classify, country, spring_tracker_level
 from .sources import FETCHERS, workday_posted
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -328,8 +328,9 @@ def scan():
                                             internship=r.get("internship", False), strict=agg and firm["category"] == "Autre")
             if not level:
                 continue
-            if r.get("spring"):  # listed on a spring-week tracker
+            if r.get("spring"):  # listed on a spring-week tracker: a spring, whatever its name
                 cycle = "Spring / Insight"
+                level = spring_tracker_level(r["title"], r.get("categories"))
             jid = hashlib.sha1((f"{c['source']}|{r['key']}" if agg else f"{name}|{r['key']}").encode()).hexdigest()[:16]
             twin = titles.get((company, norm_title(r["title"])))
             if agg and not twin:  # "2027 IB Spring Week Programme" vs "... Programme - London" on the firm's own site
@@ -344,6 +345,8 @@ def scan():
             seen_now.add(jid)
             if jid in jobs:
                 j = jobs[jid]
+                if r.get("spring") and j.get("level") == "B" and level == "A" and not j.get("closed") and not seeding:
+                    new.append(j)  # newly considered a target (rules changed): tell me as if it had just opened
                 j.update({"title": r["title"], "url": r["url"], "location": r.get("location", ""), "key": r["key"],
                           "level": level, "cycle": cycle, "region": region, "missing": 0, "last_seen": now})
                 if not agg:

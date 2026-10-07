@@ -178,3 +178,19 @@ def country(location, title=""):
         if re.search(r"\d+ locations|multiple locations|various", text, I):
             return "Plusieurs pays"
     return ""
+
+
+# Programmes listed on a spring-week tracker (TrackR) are springs whatever their name ("Black Talent in Business",
+# "Women in Business", "Discover Nomura"...): target, unless clearly a tech / quant / trading track.
+SPRING_TRACKER_SKIP = re.compile(r"engineer|software|developer|technolog|\bdata\b|cyber|\bIT\b|quant|trading|trader|actuar", I)
+
+
+SPRING_TRACKER_SKIP_CATEGORIES = {"Trading and Quant", "Promoted"}  # TrackR's own sections
+
+
+def spring_tracker_level(title, categories=()):
+    if SPRING_TRACKER_SKIP.search(title or "") or SPRING_TRACKER_SKIP_CATEGORIES & set(categories or ()):
+        return "B"
+    if re.search(r"\bsummer\b", title or "", I):  # summers listed among springs: not a spring
+        return "B"
+    return "A"

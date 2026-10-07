@@ -56,6 +56,19 @@ class ClassifyTest(unittest.TestCase):
                 self.assertEqual(classify(title, "Autre", internship=True, strict=True)[0], want)
 
 
+class SpringTrackerTest(unittest.TestCase):
+    def test_anything_on_the_spring_tracker_is_a_spring(self):
+        from radar.classify import spring_tracker_level
+        for t in ["Black Talent in Business", "Women in Business", "Advancing Social Mobility", "2027 - Discover Nomura Programme"]:
+            self.assertEqual(spring_tracker_level(t), "A", t)
+        for t in ["Discovery Programme: Quantitative Trading", "FutureFocus: Quants 2027", "Spring into Technology",
+                  "Summer 2027 Intern"]:
+            self.assertEqual(spring_tracker_level(t), "B", t)
+        self.assertEqual(spring_tracker_level("FOCUS / FTTP", ["Trading and Quant"]), "B")
+        self.assertEqual(spring_tracker_level("Investing Simulator Challenge 2026", ["Promoted"]), "B")
+        self.assertEqual(spring_tracker_level("Black Talent in Business", ["Big 4"]), "A")
+
+
 class NormTitleTest(unittest.TestCase):
     def test_same_posting_on_two_boards(self):
         from radar.main import norm_title
