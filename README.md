@@ -11,6 +11,8 @@ Le radar de stages d'Andrea (EDHEC, Master in Finance, promo 2029). Il surveille
 - 🔥 **Notification instantanée** pour chaque nouvelle offre « pour toi ».
 - 🌸 **Springs en priorité** : TrackR (UK Finance Spring Weeks) et les sites des banques et boutiques sont relus **toutes les 5 minutes**, jour et nuit. Chaque nouvelle spring déclenche **5 notifications** espacées de quelques secondes pour te réveiller (`config.json` → `spring_alarm`).
 - 🌙 **Nuit calme (23 h – 6 h)** : seules les springs sont envoyées ; le reste arrive en un seul message à 6 h (`config.json` → `quiet_hours`).
+- 🥂 **Events** : événements networking et carrière en finance (banques et fonds via TrackR et leurs sites, Luma, Eventbrite), en France ou en ligne, gratuits de préférence. Onglet Events du tableau de bord + **un seul récap Telegram par jour à 19 h** (`config.json` → `events_hour`).
+- 📄 **Pages étudiants** : les changements sont regroupés dans **un seul message par jour à 20 h** (`config.json` → `pages_hour`).
 - ☀️ **Récap à 7 h** : les nouveautés pour toi, les autres offres ciblées, les deadlines, les springs attendues et les sources en panne.
 - 🌐 **Sites d'offres** : LinkedIn, JobTeaser et WTTJ couvrent les boîtes sans plateforme lisible (BNP Paribas, SG, Natixis, UBS, Tikehau, Bpifrance, boutiques…). Les doublons avec le site de la boîte sont supprimés, et les recherches se règlent dans `searches.csv`.
 - 📊 **Tableau de bord** : « Pour toi », Nouveautés, Tableau, Springs 2027, Pages étudiantes, Calendrier, Candidatures et Réseau.
@@ -59,6 +61,7 @@ Onglet **Actions** → active les workflows → **Lolipop → Run workflow**. De
 | Surveiller une spring / un programme | une ligne dans `programmes.csv` |
 | Surveiller une page « Students » | une ligne dans `pages.csv` |
 | Changer l'heure du récap | `config.json` → `digest_hour` |
+| Changer l'heure des récaps events / pages | `config.json` → `events_hour`, `pages_hour` |
 | Changer la nuit calme | `config.json` → `quiet_hours` (`start`, `end`) |
 | Suivre un autre onglet TrackR | une ligne `trackr,UK|Finance|2027|off-cycle-internships,,…` dans `searches.csv` |
 | Lancer un scan tout de suite | Actions → Lolipop → Run workflow |

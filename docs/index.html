@@ -178,6 +178,18 @@ dialog p.d{margin:0 0 16px;color:var(--muted);font-size:12.5px}
 .ev.exp{background:var(--brand-soft);color:var(--brand)}
 .ev.open{background:var(--ok-soft);color:var(--ok)}
 .ev.me{background:var(--info-soft);color:var(--info)}
+.ev.evt{background:var(--warn-soft);color:var(--warn)}
+.evrow{display:grid;grid-template-columns:56px 1fr auto;gap:14px;align-items:start;padding:14px 16px;border-top:1px solid var(--line)}
+.evrow:first-child{border-top:0}
+.evdate{border:1px solid var(--line);border-radius:10px;text-align:center;padding:6px 0;line-height:1.1;background:var(--surface)}
+.evdate b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.evdate span{font-size:11px;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em}
+.evrow .t a{font-weight:600;color:var(--ink);text-decoration:none}
+.evrow .t a:hover{text-decoration:underline}
+.evrow .m{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.evrow .r{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.evrow.done{opacity:.55}
+@media (max-width:640px){.evrow{grid-template-columns:48px 1fr}.evrow .r{grid-column:1/-1;flex-direction:row;justify-content:flex-start;flex-wrap:wrap}}
 .ev.more{background:none;color:var(--muted)}
 .agenda{margin-top:18px}
 .agenda .d{font-size:12px;font-weight:600;color:var(--ink-2);margin:14px 0 6px;text-transform:capitalize}
@@ -299,6 +311,7 @@ dialog .nform{max-height:85vh;overflow:auto}
       <button class="tab" data-tab="springs">Springs 2027<span class="n" id="n-springs"></span></button>
       <button class="tab" data-tab="pages">Pages étudiantes<span class="n" id="n-pages"></span></button>
       <button class="tab" data-tab="cal">Calendrier</button>
+      <button class="tab" data-tab="events">Events<span class="n" id="n-events"></span></button>
       <button class="tab" data-tab="mine">Candidatures<span class="n" id="n-mine"></span></button>
       <button class="tab" data-tab="net">Réseau<span class="n" id="n-net"></span></button>
       <button class="tab" data-tab="info">Infos générales</button>
@@ -333,6 +346,7 @@ dialog .nform{max-height:85vh;overflow:auto}
   <section id="v-springs" hidden></section>
   <section id="v-pages" hidden></section>
   <section id="v-cal" hidden></section>
+  <section id="v-events" hidden></section>
   <section id="v-mine" hidden></section>
   <section id="v-net" hidden></section>
   <section id="v-info" hidden></section>
@@ -397,6 +411,12 @@ try { MAN = Object.assign({offers: [], checks: {}}, JSON.parse(localStorage.getI
 const saveMan = () => { try { localStorage.setItem(MKEY, JSON.stringify(MAN)); } catch (e) {} };
 const progKey = p => `${p.company}|${p.program}`;
 const statusOf = id => (ST[id] && ST[id].s) || "";
+// Événements : "go" (à voir), "inscrit", "ignore" — enregistrés dans ce navigateur
+const EKEY = "radar-events-v1";
+let EVST = {};
+try { EVST = JSON.parse(localStorage.getItem(EKEY) || "{}") || {}; } catch (e) {}
+const saveEv = () => { try { localStorage.setItem(EKEY, JSON.stringify(EVST)); } catch (e) {} };
+const evStatus = id => EVST[id] || "";
 const firstName = () => (((DATA.profile || {}).name || "").split(" ")[0]) || "";
 function criteriaText() {
   const t = DATA.targets || {}, sp = t.spring || {}, it = t.internship || {};
@@ -686,7 +706,7 @@ function renderPages() {
 }
 
 /* ---------- Calendrier ---------- */
-let CAL_MONTH = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1), CAL_TYPES = new Set(["dl", "exp", "open", "me"]);
+let CAL_MONTH = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1), CAL_TYPES = new Set(["dl", "exp", "open", "me", "evt"]);
 function calEvents() {
   const ev = [];
   for (const j of allJobs()) {
@@ -705,6 +725,10 @@ function calEvents() {
     if (v.s === "À postuler" && j.deadline) ev.push({d: j.deadline, t: "me", label: `${j.company} — à envoyer avant la deadline`, url: j.url, pre: "À envoyer"});
   }
   for (const c of NET.contacts) if (c.next && c.next.date) ev.push({d: c.next.date, t: "me", label: `${fullName(c)} — ${c.next.label}`, url: "#", pre: "Réseau"});
+  for (const e of DATA.events || []) {
+    const st = evStatus(e.id);
+    if (e.date && st !== "ignore" && (e.notify || st)) ev.push({d: e.date, t: "evt", label: `${e.org ? e.org + " — " : ""}${e.title}`, url: e.url, pre: st === "inscrit" ? "Inscrit·e" : "Event"});
+  }
   return ev.filter(e => CAL_TYPES.has(e.t));
 }
 function renderCal() {
@@ -728,7 +752,7 @@ function renderCal() {
   $("v-cal").innerHTML = `<div class="page-title"><h1>Calendrier</h1><p>Deadlines, ouvertures attendues et tes candidatures</p></div><div class="cal-head">
       <button class="btn sm ghost" data-cal="-1">‹</button><h2>${CAL_MONTH.toLocaleDateString("fr-FR", {month: "long", year: "numeric"})}</h2><button class="btn sm ghost" data-cal="1">›</button>
       <button class="btn sm ghost" data-cal="0">Aujourd'hui</button><span class="spacer"></span>
-      ${tchip("dl", "Deadlines")}${tchip("exp", "Ouvertures attendues")}${tchip("open", "Springs ouvertes")}${tchip("me", "Mes candidatures")}</div>
+      ${tchip("dl", "Deadlines")}${tchip("exp", "Ouvertures attendues")}${tchip("open", "Springs ouvertes")}${tchip("me", "Mes candidatures")}${tchip("evt", "Événements")}</div>
     <div class="cal">${cells}</div>
     <div class="agenda"><div class="section-head"><h2>Les 45 prochains jours</h2><span class="c">${upcoming.length}</span></div>
       ${days.length ? days.map(d => `<div class="d">${toDate(d).toLocaleDateString("fr-FR", {weekday: "long", day: "numeric", month: "long"})}</div>
@@ -851,6 +875,61 @@ function renderHome() {
         ${count("À postuler") ? `<div class="mini"><div class="t"><span class="l">${count("À postuler")} offre${count("À postuler") > 1 ? "s" : ""} en attente d'envoi</span></div><div class="r"><a class="btn sm ghost" data-go="mine">Y aller</a></div></div>`
           : `<div class="empty" style="padding:4px 16px 16px;text-align:left">Marque une offre « À postuler » pour la retrouver ici.</div>`}</div>
     </div>`;
+}
+
+/* ---------- Events ---------- */
+let EVF = {view: "mine", q: "", source: "", free: false};
+function gcalLink(e) {
+  const d = (e.date || "").replace(/-/g, ""), next = new Date(toDate(e.date).getTime() + 864e5);
+  const d2 = `${next.getFullYear()}${String(next.getMonth() + 1).padStart(2, "0")}${String(next.getDate()).padStart(2, "0")}`;
+  const q = new URLSearchParams({action: "TEMPLATE", text: e.title, dates: `${d}/${d2}`, details: e.url, location: e.online ? "En ligne" : (e.city || "")});
+  return "https://calendar.google.com/calendar/render?" + q.toString();
+}
+function evRow(e) {
+  const st = evStatus(e.id), d = e.date ? toDate(e.date) : null;
+  const price = e.free ? '<span class="badge b-ok">Gratuit</span>' : e.free === false ? '<span class="badge b-grey">Payant</span>' : '<span class="badge b-grey b-plain">Prix à vérifier</span>';
+  const where = e.online ? '<span class="badge b-info">En ligne</span>' : `<span>📍 ${esc(e.city || "Lieu à confirmer")}</span>`;
+  const reg = e.register_by ? (daysFrom(e.register_by) <= 3 ? `<span class="urgent">Inscription avant le ${fmt(e.register_by)}</span>` : `<span>Inscription avant le ${fmt(e.register_by)}</span>`) : "";
+  const isNewEv = e.first_seen && Date.now() - new Date(e.first_seen) < 2 * 864e5;
+  return `<div class="evrow ${st === "ignore" ? "done" : ""}">
+    <div class="evdate">${d ? `<b>${d.getDate()}</b><span>${MOIS[d.getMonth()]}</span>` : `<b>?</b><span>${esc((e.date_text || "date").slice(0, 8))}</span>`}</div>
+    <div class="t"><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a>
+      <div class="m">${e.org ? `<b style="color:var(--ink)">${esc(e.org)}</b>` : ""}${where}${e.time ? `<span>${esc(e.time.replace(":", "h"))}</span>` : ""}${price}
+        ${e.notify ? '<span class="badge b-ok b-plain">Pour toi</span>' : ""}${isNewEv ? '<span class="badge b-warn">Nouveau</span>' : ""}
+        <span class="badge b-grey b-plain">via ${esc(e.source)}</span>${e.restriction ? `<span class="fact warn">Réservé : ${esc(e.restriction)}</span>` : ""}${reg}</div></div>
+    <div class="r"><select class="st ${st ? "set" : ""}" data-evst="${e.id}" aria-label="Mon statut"><option value="">Suivre…</option>
+        <option value="go" ${st === "go" ? "selected" : ""}>À voir</option><option value="inscrit" ${st === "inscrit" ? "selected" : ""}>Inscrit·e</option><option value="ignore" ${st === "ignore" ? "selected" : ""}>Pas intéressé·e</option></select>
+      <div class="acts">${e.date ? `<a class="btn sm ghost" href="${esc(gcalLink(e))}" target="_blank" rel="noopener" title="Ajouter à Google Agenda">+ Agenda</a>` : ""}<a class="btn sm" href="${esc(e.url)}" target="_blank" rel="noopener">S'inscrire</a></div></div>
+  </div>`;
+}
+function renderEvents() {
+  const all = DATA.events || [], q = nnorm(EVF.q);
+  const list = all.filter(e => (EVF.view === "mine" ? e.notify || evStatus(e.id) === "go" || evStatus(e.id) === "inscrit"
+                               : EVF.view === "near" ? e.reachable : true)
+      && (!EVF.source || e.source === EVF.source) && (!EVF.free || e.free)
+      && (!q || nnorm(`${e.title} ${e.org} ${e.city}`).includes(q)))
+    .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999") || (b.score || 0) - (a.score || 0));
+  const mine = all.filter(e => evStatus(e.id) === "inscrit" && e.date && daysFrom(e.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
+  const groups = {};
+  for (const e of list) {
+    const k = e.date ? toDate(e.date).toLocaleDateString("fr-FR", {month: "long", year: "numeric"}) : "Date à confirmer";
+    (groups[k] = groups[k] || []).push(e);
+  }
+  const chip = (v, l, n) => `<button class="chip ${EVF.view === v ? "on" : ""}" data-evview="${v}"><b>${n}</b>${l}</button>`;
+  const sources = [...new Set(all.map(e => e.source))].sort();
+  $("v-events").innerHTML = `<div class="page-title"><h1>Events</h1><p>Networking, conférences et événements des banques et fonds — en France ou en ligne, gratuits de préférence. Récap Telegram chaque jour à 19 h.</p></div>
+    ${mine.length ? `<div class="card" style="margin-bottom:14px"><div class="card-h"><h3>Mes inscriptions</h3><span class="c">${mine.length}</span></div>
+      ${mine.slice(0, 5).map(e => `<div class="mini">${jBadge(daysFrom(e.date))}<div class="t"><b>${esc(e.org || e.source)}</b><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a></div></div>`).join("")}</div>` : ""}
+    <div class="filters" style="align-items:center">
+      ${chip("mine", "pour toi", all.filter(e => e.notify).length)}${chip("near", "en France ou en ligne", all.filter(e => e.reachable).length)}${chip("all", "tous", all.length)}
+      <input type="search" id="evq" placeholder="Rechercher un événement, une boîte, une ville…" value="${esc(EVF.q)}">
+      <select id="evsrc"><option value="">Toutes les sources</option>${sources.map(x => `<option ${EVF.source === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
+      <label class="check"><input type="checkbox" id="evfree" ${EVF.free ? "checked" : ""}> Gratuits seulement</label></div>
+    ${list.length ? Object.entries(groups).map(([k, g]) => `<div class="section-head"><h2 style="text-transform:capitalize">${esc(k)}</h2><span class="c">${g.length}</span></div>
+      <div class="panel">${g.map(evRow).join("")}</div>`).join("")
+      : `<div class="panel empty">${all.length ? "Aucun événement ne correspond à ces filtres." : "Pas encore d'événements : ils sont relus toutes les 6 heures."}</div>`}
+    <p class="note">Sources : TrackR (événements des banques et fonds, souvent à Londres ou en ligne), sites carrières des boîtes suivies, Luma et Eventbrite (Paris et France).
+      « Pour toi » = en France ou en ligne, lié au M&A / PE / marchés ou organisé par une banque ou un fonds, pas payant. Ton suivi (À voir, Inscrit·e) reste dans ce navigateur.</p>`;
 }
 
 /* ---------- Infos générales ---------- */
@@ -1329,6 +1408,9 @@ document.addEventListener("change", e => {
   if (e.target.id === "nst") { NFILTER.status = e.target.value; render(); }
   if (e.target.id === "nfi") { NFILTER.firm = e.target.value; render(); }
   if (e.target.id === "nfirmsel") { NFIRM = e.target.value; render(); }
+  if (e.target.dataset && e.target.dataset.evst !== undefined) { const v = e.target.value; if (v) EVST[e.target.dataset.evst] = v; else delete EVST[e.target.dataset.evst]; saveEv(); render(); }
+  if (e.target.id === "evsrc") { EVF.source = e.target.value; render(); }
+  if (e.target.id === "evfree") { EVF.free = e.target.checked; render(); }
   if (e.target.id === "nfprio") { firmNote(NFIRM).prio = e.target.value; touchFirm(NFIRM); render(); }
   if (e.target.id === "nfnotes") { firmNote(NFIRM).notes = e.target.value; touchFirm(NFIRM); }
   if (e.target.id === "ncp") { NCARNET.prio = e.target.value; render(); }
@@ -1340,6 +1422,7 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("input", e => {
   if (e.target.id === "nq") { NFILTER.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("nq"); q.focus(); q.setSelectionRange(pos, pos); }
+  if (e.target.id === "evq") { EVF.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("evq"); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === "ncq") { NCARNET.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("ncq"); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === "nfnotes") { clearTimeout(window._nfT); const v = e.target.value, f = NFIRM; window._nfT = setTimeout(() => { firmNote(f).notes = v; touchFirm(f); }, 600); }
 });
@@ -1351,17 +1434,18 @@ function renderCounts() {
   $("n-offres").textContent = S.week.length || "";
   $("n-springs").textContent = S.springsOpen.length || "";
   $("n-pages").textContent = S.pagesChanged.length || "";
+  $("n-events").textContent = (DATA.events || []).filter(e => e.notify && e.first_seen && Date.now() - new Date(e.first_seen) < 2 * 864e5 && evStatus(e.id) !== "ignore").length || "";
   $("n-mine").textContent = Object.values(ST).filter(v => v.s && v.s !== "Ignorer").length || "";
   $("n-net").textContent = netStats().due.length || "";
 }
 function render() {
-  ["home", "offres", "springs", "pages", "cal", "mine", "net", "info"].forEach(t => $("v-" + t).hidden = t !== TAB);
+  ["home", "offres", "springs", "pages", "cal", "events", "mine", "net", "info"].forEach(t => $("v-" + t).hidden = t !== TAB);
   if (TAB === "offres") {
     ["prio", "news", "table"].forEach(t => $("v-" + t).hidden = t !== SUB);
     document.querySelectorAll(".sub").forEach(b => b.classList.toggle("on", b.dataset.sub === SUB));
     ({prio: renderPrio, news: renderNews, table: renderTable})[SUB]();
   } else {
-    ({home: renderHome, springs: renderSprings, pages: renderPages, cal: renderCal, mine: renderMine, net: renderNet, info: renderInfo})[TAB]();
+    ({home: renderHome, springs: renderSprings, pages: renderPages, cal: renderCal, events: renderEvents, mine: renderMine, net: renderNet, info: renderInfo})[TAB]();
   }
   renderCounts();
 }
@@ -1377,7 +1461,7 @@ function go(target) {  // "offres:prio:eligible", "springs", "cal"...
 
 /* ---------- events ---------- */
 document.addEventListener("change", e => {
-  if (!e.target.matches("select.st")) return;
+  if (!e.target.matches("select.st[data-id]")) return;
   const id = e.target.dataset.id, v = e.target.value;
   if (v) {
     const j = allJobs().find(x => x.id === id) || (ST[id] && ST[id].job) || {};
@@ -1399,6 +1483,7 @@ document.addEventListener("click", e => {
   const pf = e.target.closest("[data-pf]"); if (pf) { PAGE_FILTER = PAGE_FILTER === pf.dataset.pf ? "" : pf.dataset.pf; render(); return; }
   const cm = e.target.closest("[data-cal]");
   if (cm) { const k = +cm.dataset.cal; CAL_MONTH = k ? new Date(CAL_MONTH.getFullYear(), CAL_MONTH.getMonth() + k, 1) : new Date(TODAY.getFullYear(), TODAY.getMonth(), 1); render(); return; }
+  const evv = e.target.closest("[data-evview]"); if (evv) { EVF.view = evv.dataset.evview; render(); return; }
   const ct = e.target.closest("[data-ct]"); if (ct) { CAL_TYPES.has(ct.dataset.ct) ? CAL_TYPES.delete(ct.dataset.ct) : CAL_TYPES.add(ct.dataset.ct); render(); return; }
   const seen = e.target.closest("[data-seen]");
   if (seen) { const p = (DATA.programmes || []).find(x => progKey(x) === seen.dataset.seen);
@@ -1435,7 +1520,7 @@ $("dlg").addEventListener("close", () => {
 ["q", "level", "elig", "cycle", "country", "category", "hideDone"].forEach(id => $(id).addEventListener("input", () => { EXP = {}; TABLE_LIMIT = 100; render(); }));
 function exportData() {
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify({version: 4, candidatures: ST, manuel: MAN, reseau: NET}, null, 1)], {type: "application/json"}));
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({version: 5, candidatures: ST, manuel: MAN, reseau: NET, events: EVST}, null, 1)], {type: "application/json"}));
   a.download = "radar-mes-donnees.json"; a.click();
 }
 document.addEventListener("change", async e => {
@@ -1455,6 +1540,7 @@ document.addEventListener("change", async e => {
       NET.extraFirms = (NET.extraFirms || []).concat((data.reseau.extraFirms || []).filter(f => !names.has(f.name)));
       saveNet();
     }
+    if (data.events) { Object.assign(EVST, data.events); saveEv(); }
     if (data.manuel) {  // candidatures + offres ajoutées + vérifications
       const ids = new Set(MAN.offers.map(o => o.id));
       MAN.offers.push(...(data.manuel.offers || []).filter(o => !ids.has(o.id)));

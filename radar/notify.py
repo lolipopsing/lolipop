@@ -63,3 +63,18 @@ def _fr(iso):
         return f"{int(d)} {MOIS[int(m) - 1]}"
     except Exception:
         return iso
+
+
+def event_line(e):
+    when = _fr(e["date"]) if e.get("date") else (e.get("date_text") or "date à confirmer")
+    if e.get("time"):
+        when += " · " + e["time"].replace(":", "h")
+    where = "En ligne" if e.get("online") else (e.get("city") or "Lieu à confirmer")
+    price = "gratuit" if e.get("free") else "payant" if e.get("free") is False else "prix à vérifier"
+    s = f'🗓 <b>{esc(when)}</b> — <a href="{esc(e["url"])}">{esc(e["title"])}</a>'
+    s += "\n📍 " + esc(" · ".join(x for x in [where, e.get("org"), price] if x))
+    if e.get("register_by"):
+        s += "\n⏰ inscription avant le " + _fr(e["register_by"])
+    if e.get("restriction"):
+        s += "\n⚠️ Réservé : " + esc(e["restriction"])
+    return s

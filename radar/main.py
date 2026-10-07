@@ -21,10 +21,10 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
-from . import notify
+from . import events, notify
 from .details import analyze, evaluate, fill_details
 from .pages import for_dashboard, scan_pages
-from .classify import SPRING, STRONG_TARGET, classify, country
+from .classify import STRONG_TARGET, classify, country
 from .sources import FETCHERS, workday_posted
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -81,7 +81,7 @@ SPRING_CATEGORIES = {"Banque BB", "Boutique M&A"}
 
 def rhythm(c, spring_firms):
     if c["source"] == "trackr":
-        return "spring"
+        return "spring" if c["source_id"].endswith("spring-weeks") else "normal"
     if c.get("aggregator"):
         return "2h" if c["source"] == "jobteaser" else "hourly"
     if c["source"] == "oleeo":
@@ -100,6 +100,8 @@ def slot(kind, now=None):
         return now.strftime("%Y-%m-%dT") + str(now.hour // 2)
     if kind == "normal":
         return now.strftime("%Y-%m-%dT%H:") + str(now.minute // 15)
+    if kind == "6h":
+        return now.strftime("%Y-%m-%dT") + str(now.hour // 6)
     return None  # spring: every run
 
 
@@ -388,7 +390,12 @@ def scan():
 
     fill_posted_dates(jobs)
     fill_details(jobs)
-    page_changes = scan_pages(state, now)
+    if state.get("pages_slot") != slot("normal"):  # students pages: every 15 min, reported once a day (pages_hour)
+        state.setdefault("pages_queue", []).extend(scan_pages(state, now))
+        state["pages_slot"] = slot("normal")
+    if state.get("events_slot") != slot("6h"):  # networking events: every 6 h, reported once a day (events_hour)
+        events.collect(state, {c["name"] for c in companies if not c.get("aggregator")}, now)
+        state["events_slot"] = slot("6h")
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=KEEP_CLOSED_DAYS)).isoformat()
     for jid in [k for k, j in jobs.items() if j.get("closed") and j["closed"] < cutoff]:
@@ -408,19 +415,23 @@ def scan():
         mine = [j for j in new if fit(j, cfg)]
         if quiet(cfg):  # night: springs right away, the rest at the end of the night
             instant(cfg, [j for j in mine if is_spring(j)])
-            queue = state.setdefault("night_queue", {"jobs": [], "pages": []})
+            queue = state.setdefault("night_queue", {"jobs": []})
             queue["jobs"] += [j["id"] for j in mine if not is_spring(j)]
-            notify_pages(cfg, [p for p in page_changes if spring_page_change(p)])
-            queue["pages"] += [p for p in page_changes if not spring_page_change(p)]
         else:
             morning_flush(cfg, state)
             instant(cfg, mine)
-            notify_pages(cfg, page_changes)
 
     lt = local_now(cfg)
-    if lt.hour >= cfg.get("digest_hour", 7) and state.get("last_digest") != lt.date().isoformat():
+    today = lt.date().isoformat()
+    if lt.hour >= cfg.get("digest_hour", 7) and state.get("last_digest") != today:
         digest(cfg, state, companies)
-        state["last_digest"] = lt.date().isoformat()
+        state["last_digest"] = today
+    if lt.hour >= cfg.get("events_hour", 19) and state.get("last_events_digest") != today and not first_run:
+        events_digest(cfg, state)
+        state["last_events_digest"] = today
+    if lt.hour >= cfg.get("pages_hour", 20) and state.get("last_pages_digest") != today:
+        notify_pages(cfg, state.pop("pages_queue", []))
+        state["last_pages_digest"] = today
 
     if fingerprint(state) != before or not os.path.exists(DASH_PATH):
         save(state, companies, cfg)
@@ -431,10 +442,6 @@ def scan():
 
 def is_spring(j):
     return j.get("cycle") == "Spring / Insight"
-
-
-def spring_page_change(p):
-    return any(SPRING.search(l) for l in p.get("added", []) + p.get("removed", []))
 
 
 def quiet(cfg):
@@ -457,7 +464,6 @@ def morning_flush(cfg, state):
         body = "\n\n".join(notify.job_line(j) for j in jobs[:30])
         more = f"\n\n… et {len(jobs) - 30} autres." if len(jobs) > 30 else ""
         notify.send(f"🌙 <b>Pendant la nuit : {len(jobs)} nouvelle(s) offre(s) pour toi</b>\n\n{body}{more}{dash_link(cfg)}")
-    notify_pages(cfg, queue.get("pages", []))
 
 
 def clean_html(s):
@@ -466,16 +472,45 @@ def clean_html(s):
 
 
 def notify_pages(cfg, changes):
+    """Once a day: what changed on the students pages since yesterday, one block per page."""
     if not changes:
         return
+    pages = {}
+    for c in changes:  # several changes on the same page during the day -> one block
+        p = pages.setdefault(c["url"], dict(c, added=[], removed=[]))
+        p["added"] += [l for l in c["added"] if l not in p["added"]]
+        p["removed"] += [l for l in c["removed"] if l not in p["removed"]]
+        p["status"] = c.get("status") or p.get("status")
+    for p in pages.values():  # a line removed then put back = no change
+        both = set(p["added"]) & set(p["removed"])
+        p["added"] = [l for l in p["added"] if l not in both]
+        p["removed"] = [l for l in p["removed"] if l not in both]
+    pages = [p for p in pages.values() if p["added"] or p["removed"]]
+    if not pages:
+        return
     blocks = []
-    for c in changes[:8]:
+    for c in pages[:15]:
         lines = "\n".join("➕ " + notify.esc(l[:160]) for l in c["added"][:3])
         if not lines:
             lines = "➖ " + notify.esc(c["removed"][0][:160])
         badge = {"ouvert": " · 🟢 candidatures ouvertes", "bientôt": " · 🟡 bientôt", "fermé": " · 🔴 fermé"}.get(c.get("status"), "")
         blocks.append(f'📄 <b>{notify.esc(c["company"])}</b> — <a href="{notify.esc(c["url"])}">{notify.esc(c["label"])}</a>{badge}\n{lines}')
-    notify.send("<b>Page étudiants modifiée</b>\n\n" + "\n\n".join(blocks) + dash_link(cfg))
+    more = f"\n\n… et {len(pages) - 15} autre(s) page(s)." if len(pages) > 15 else ""
+    notify.send(f"📄 <b>Pages étudiants : {len(pages)} modifiée(s) aujourd'hui</b>\n\n" + "\n\n".join(blocks) + more + dash_link(cfg))
+
+
+def events_digest(cfg, state):
+    """Once a day: networking events found since the last message (France or online, relevant, not paid)."""
+    sent = set(state.get("events_sent", []))
+    todo = [e for e in events.upcoming(state) if e["id"] not in sent and events.worth_notifying(e)]
+    if todo:
+        todo.sort(key=lambda e: (-e["score"], e.get("date") or "9999"))
+        top = sorted(todo[:12], key=lambda e: e.get("date") or "9999")
+        more = f"\n\n… et {len(todo) - 12} autre(s) dans l'onglet Events." if len(todo) > 12 else ""
+        notify.send(f"🥂 <b>{len(todo)} événement(s) networking à ne pas rater</b>\n\n"
+                    + "\n\n".join(notify.event_line(e) for e in top) + more + dash_link(cfg))
+    keep = {e["id"] for e in events.upcoming(state)}
+    state["events_sent"] = sorted((sent | {e["id"] for e in todo}) & keep)
 
 
 def fill_posted_dates(jobs, budget=300):
@@ -689,7 +724,9 @@ def save(state, companies, cfg):
         json.dump({"updated": now_iso(), "jobs": out, "companies": comp, "searches": searches, "targets": cfg.get("targets"),
                    "profile": {k: v for k, v in cfg.get("profile", {}).items() if k != "nationality"},
                    "programmes": programme_status(load_programmes(), state["jobs"], companies, today, state["sources"]),
-                   "pages": for_dashboard(state)},
+                   "pages": for_dashboard(state),
+                   "events": [dict(e, reachable=events.reachable(e), notify=events.worth_notifying(e)) for e in events.upcoming(state)],
+                   "events_errors": state.get("events_errors", [])},
                   f, ensure_ascii=False, separators=(",", ":"))
 
 

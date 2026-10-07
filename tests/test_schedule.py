@@ -28,7 +28,8 @@ class QuietHoursTest(unittest.TestCase):
 class RhythmTest(unittest.TestCase):
     def test_rhythms(self):
         firm = lambda **kw: dict({"name": "X", "category": "Private Equity", "tier": "3", "source": "workday"}, **kw)
-        self.assertEqual(main.rhythm(firm(source="trackr", aggregator=True), set()), "spring")
+        self.assertEqual(main.rhythm(firm(source="trackr", source_id="UK|Finance|2027|spring-weeks", aggregator=True), set()), "spring")
+        self.assertEqual(main.rhythm(firm(source="trackr", source_id="France|Finance|2027|off-cycle-internships", aggregator=True), set()), "normal")
         self.assertEqual(main.rhythm(firm(source="linkedin", aggregator=True), set()), "hourly")
         self.assertEqual(main.rhythm(firm(source="jobteaser", aggregator=True), set()), "2h")
         self.assertEqual(main.rhythm(firm(category="Banque BB"), set()), "spring")

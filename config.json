@@ -1,6 +1,8 @@
 {
   "timezone": "Europe/Paris",
   "digest_hour": 7,
+  "events_hour": 19,
+  "pages_hour": 20,
   "quiet_hours": {
     "start": 23,
     "end": 6
