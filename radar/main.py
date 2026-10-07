@@ -725,7 +725,8 @@ def save(state, companies, cfg):
                    "profile": {k: v for k, v in cfg.get("profile", {}).items() if k != "nationality"},
                    "programmes": programme_status(load_programmes(), state["jobs"], companies, today, state["sources"]),
                    "pages": for_dashboard(state),
-                   "events": [dict(e, reachable=events.reachable(e), notify=events.worth_notifying(e)) for e in events.upcoming(state)],
+                   "events": [dict(e, reachable=events.reachable(e), local=events.is_local(e), notify=events.worth_notifying(e))
+                              for e in events.upcoming(state)],
                    "events_errors": state.get("events_errors", [])},
                   f, ensure_ascii=False, separators=(",", ":"))
 

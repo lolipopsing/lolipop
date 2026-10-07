@@ -27,7 +27,7 @@ STRONG = re.compile(r"m ?& ?a\b|fusions?[- ]acquisitions?|investment bank|banque
                     r"|\blbo\b|venture capital|corporate finance|dette priv|private (debt|credit)|restructuring|banking", I)
 NETWORKING = re.compile(r"network|r[ée]seau|afterwork|after[- ]work|ap[ée]ro|cocktail|rencontre|meet ?up|forum|salon|career|carri[eè]re"
                         r"|recrut|job ?dating|table ronde|panel|conf[ée]rence|summit|sommet|masterclass|insight|open (house|day)"
-                        r"|coffee chat|petit[- ]d[ée]jeuner|breakfast|soir[ée]e|evening|workshop|atelier|webinar|students?|[ée]tudiants?", I)
+                        r"|coffee chat|petit[- ]d[ée]jeuner|d[ée]jeuner|lunch|dinner|d[iî]ner|business|breakfast|soir[ée]e|evening|workshop|atelier|webinar|students?|[ée]tudiants?", I)
 OFF_TOPIC = re.compile(r"finance personnelle|personal finance|libert[ée] financi|financial freedom|ind[ée]pendance financi|crypto|bitcoin"
                        r"|forex|day ?trading|trading (de|pour) d[ée]butants|immobilier locatif|investissement locatif|retraite|patrimoine"
                        r"|d[ée]fiscalis|whisky|vin\b|wine|yoga|danse|dance|bar crawl|speed dating|comedy|spectacle|concert|vernissage"
@@ -43,11 +43,35 @@ FAR = re.compile(r"chicago|toronto|menlo park|san francisco|new york|houston|los
                  r"|universit|\bucla\b|\busc\b|\bnyu\b|wharton|harvard|columbia|stanford|cornell|upenn|notre dame|indiana|michigan"
                  r"|yale|princeton|georgetown|duke|veteran", I)
 
+# Home area (Nice): in-person events here are worth going to even when they are "business" rather than "finance":
+# business lunches, entrepreneurs' clubs, family offices and private banks in Monaco are where the network is.
+LOCAL = re.compile(r"\bnice\b|monaco|monte[- ]?carlo|cannes|antibes|juan[- ]les[- ]pins|sophia|valbonne|mougins|menton|grasse"
+                   r"|cagnes|saint[- ]laurent[- ]du[- ]var|villefranche|beaulieu|\b[eè]ze\b|beausoleil|cap[- ]d.ail|roquebrune|biot|vence"
+                   r"|vallauris|mandelieu|fr[ée]jus|saint[- ]rapha[eë]l|carros|la turbie|c[ôo]te d.azur|riviera", I)
+BUSINESS = re.compile(r"business|entrepreneu|afterwork|after[- ]work|networking|investisseu|investor|dirigeant|chef d.entreprise"
+                      r"|\bceo\b|founders?|fondateur|startup|scale-?up|cercle|family office|wealth|private bank|banqu|financ|fintech"
+                      r"|mipim|immobilier|real estate|chambre de commerce", I)
+LOCAL_OFF = re.compile(r"foodies|new friends|pri[eè]re|louange|dict[ée]e|beaut[ée]|maquillage|yoga|\brun\b|running|versarun|marathon"
+                       r"|m[ée]ditation|formation|training course|mastermind course|\bcours\b|pacs|m[ée]dical|healthcare|sant[ée]|cinema"
+                       r"|creator|influenc|whisky|wine|vin\b|d[ée]gustation|bar crawl|speed dating|comedy|spectacle|concert|vernissage"
+                       r"|danse|dance|mariage|wedding|kids|enfants|book club|toastmasters|lifewave|\bmlm\b|\bmba\b|\bit job|\bhpc\b"
+                       r"|cluster ?ia|tourisme|h[ôo]tellerie|branding|conscious|coaching|d[ée]veloppement personnel|roadshow", I)
+
 MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
 
 
 def _iso(s):
     return (s or "")[:10] or None
+
+
+def _paris(utc):
+    """'2026-10-14T16:30:00.000Z' -> ('2026-10-14', '18:30') in Paris time."""
+    try:
+        from zoneinfo import ZoneInfo
+        d = datetime.fromisoformat((utc or "").replace("Z", "+00:00")).astimezone(ZoneInfo("Europe/Paris"))
+        return d.date().isoformat(), d.strftime("%H:%M")
+    except Exception:
+        return _iso(utc), ""
 
 
 def _loose_date(txt):
@@ -93,37 +117,43 @@ def trackr_events(region="UK", season="2027"):
 
 LUMA_PLACES = {"Paris": "discplace-NdLrh1xJfeotJZC"}
 LUMA_QUERIES = ["finance", "private equity", "venture capital", "M&A", "investment banking", "fintech", "investisseurs"]
+LUMA_LOCAL_QUERIES = ["monaco", "monte carlo", "nice", "cannes", "antibes", "sophia antipolis", "riviera", "côte d'azur"]
 
 
 def luma():
     out = {}
-    for city, place in LUMA_PLACES.items():
-        for q in LUMA_QUERIES:
-            d = get_json(f"https://api.lu.ma/discover/get-paginated-events?discover_place_api_id={place}"
-                         f"&pagination_limit=50&query={quote(q)}")
-            for e in d.get("entries", []):
-                ev = e.get("event") or {}
-                geo = ev.get("geo_address_info") or {}
-                ticket = e.get("ticket_info") or {}
-                hosts = ", ".join(h.get("name", "") for h in (e.get("hosts") or [])[:2] if h.get("name"))
-                out[ev.get("api_id") or ev.get("url")] = {
-                    "id": _eid("luma", ev.get("api_id") or ev.get("url")), "source": "Luma", "title": ev.get("name", ""),
-                    "org": (e.get("calendar") or {}).get("name") or hosts, "date": _iso(ev.get("start_at")),
-                    "time": (ev.get("start_at") or "")[11:16], "city": geo.get("city") or city, "country": "France",
-                    "online": ev.get("location_type") == "online", "free": ticket.get("is_free"),
-                    "url": "https://lu.ma/" + (ev.get("url") or ""), "summary": "", "kind": ""}
+    searches = [(city, f"discover_place_api_id={place}&query={quote(q)}") for city, place in LUMA_PLACES.items() for q in LUMA_QUERIES]
+    searches += [("", f"query={quote(q)}") for q in LUMA_LOCAL_QUERIES]  # no Luma "place" for the Riviera: search by city name
+    for city, params in searches:
+        d = get_json(f"https://api.lu.ma/discover/get-paginated-events?pagination_limit=50&{params}")
+        for e in d.get("entries", []):
+            ev = e.get("event") or {}
+            geo = ev.get("geo_address_info") or {}
+            if not city and not LOCAL.search(geo.get("city") or ""):
+                continue  # a city-name search also matches "nice" in titles worldwide
+            ticket = e.get("ticket_info") or {}
+            hosts = ", ".join(h.get("name", "") for h in (e.get("hosts") or [])[:2] if h.get("name"))
+            out[ev.get("api_id") or ev.get("url")] = {
+                "id": _eid("luma", ev.get("api_id") or ev.get("url")), "source": "Luma", "title": ev.get("name", ""),
+                "org": (e.get("calendar") or {}).get("name") or hosts, "date": _paris(ev.get("start_at"))[0],
+                "time": _paris(ev.get("start_at"))[1], "city": geo.get("city") or city,
+                "online": ev.get("location_type") == "online", "free": ticket.get("is_free"),
+                "country": "Monaco" if re.search(r"monaco|monte", geo.get("city") or "", I) else (geo.get("country") or "France"),
+                "url": "https://lu.ma/" + (ev.get("url") or ""), "summary": "", "kind": ""}
     return list(out.values())
 
 
-EVENTBRITE_SLUGS = ["finance", "private-equity", "venture-capital", "fintech", "investment-banking"]
+EVENTBRITE_PATHS = [f"france/{s}--events/" for s in ["finance", "private-equity", "venture-capital", "fintech", "investment-banking"]] + [
+    "france--nice/networking--events/", "france--nice/business/", "france--nice/entrepreneurs--events/", "france--nice/finance--events/",
+    "monaco--monaco/networking--events/", "france--cannes/networking--events/"]  # home area (Nice, Monaco, Cannes)
 
 
 def eventbrite():
     out = {}
-    for slug in EVENTBRITE_SLUGS:  # one at a time: Eventbrite answers 429 when hit in parallel
+    for path in EVENTBRITE_PATHS:  # one at a time: Eventbrite answers 429 when hit in parallel
         for page in (1,):
             time.sleep(2)
-            h = get_text(f"https://www.eventbrite.fr/d/france/{slug}--events/?page={page}")
+            h = get_text(f"https://www.eventbrite.fr/d/{path}?page={page}")
             i = h.find("window.__SERVER_DATA__ = ")
             if i < 0:
                 break
@@ -135,7 +165,7 @@ def eventbrite():
                 tags = " ".join(t.get("display_name", "") for t in e.get("tags") or [])
                 out[e["id"]] = {"id": _eid("eventbrite", e["id"]), "source": "Eventbrite", "title": e.get("name", ""),
                                 "org": "", "date": e.get("start_date"), "time": (e.get("start_time") or "")[:5],
-                                "city": venue.get("city") or "", "country": venue.get("country") or "FR",
+                                "city": venue.get("city") or "", "country": "Monaco" if venue.get("country") == "MC" else (venue.get("country") or "FR"),
                                 "online": bool(e.get("is_online_event")), "free": None, "url": e.get("url", "").split("?")[0],
                                 "summary": e.get("summary") or "", "kind": tags}
     return list(out.values())
@@ -185,8 +215,12 @@ def score(ev, firms):
         s += 2
     if ev.get("free"):
         s += 1
-    if ev.get("online") or (ev.get("country") or "").upper() in ("FR", "FRANCE"):
+    if ev.get("online") or (ev.get("country") or "").upper() in ("FR", "FRANCE", "MONACO", "MC"):
         s += 1
+    if is_local(ev):  # near home: easy to go, and the people there have a network
+        s += 3
+        if re.search(r"family office|private bank|wealth|investisseu|investor|banqu|financ", text, I):
+            s += 1
     if OFF_ROLE.search(ev["title"]):
         s -= 3
     return s
@@ -199,12 +233,18 @@ def relevant(ev):
     if ev["source"] == "Site de la boîte":  # US campus coffee chats are not for me; virtual sessions are
         return not FAR.search(ev["title"] + " " + ev.get("city", "")) and bool(
             ev.get("online") or re.search(r"paris|france|london|londres", ev.get("city", ""), I))
+    if is_local(ev):
+        return bool(STRONG.search(text) or PRO.search(text) or BUSINESS.search(text)) and not LOCAL_OFF.search(ev["title"])
     return bool(STRONG.search(text) or PRO.search(text)) and not OFF_TOPIC.search(text)
+
+
+def is_local(ev):
+    return not ev.get("online") and bool(LOCAL.search(ev.get("city") or ""))
 
 
 def reachable(ev):
     """Somewhere I can go: in France, or online."""
-    return ev.get("online") or (ev.get("country") or "").upper() in ("FR", "FRANCE")
+    return ev.get("online") or (ev.get("country") or "").upper() in ("FR", "FRANCE", "MONACO", "MC")
 
 
 # ----------------------------------------------------------------- collect / store

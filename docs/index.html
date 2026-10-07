@@ -888,7 +888,7 @@ function gcalLink(e) {
 function evRow(e) {
   const st = evStatus(e.id), d = e.date ? toDate(e.date) : null;
   const price = e.free ? '<span class="badge b-ok">Gratuit</span>' : e.free === false ? '<span class="badge b-grey">Payant</span>' : '<span class="badge b-grey b-plain">Prix à vérifier</span>';
-  const where = e.online ? '<span class="badge b-info">En ligne</span>' : `<span>📍 ${esc(e.city || "Lieu à confirmer")}</span>`;
+  const where = e.online ? '<span class="badge b-info">En ligne</span>' : `<span>📍 ${esc(e.city || "Lieu à confirmer")}</span>${e.local ? '<span class="badge b-warn b-plain">Côte d\'Azur</span>' : ""}`;
   const reg = e.register_by ? (daysFrom(e.register_by) <= 3 ? `<span class="urgent">Inscription avant le ${fmt(e.register_by)}</span>` : `<span>Inscription avant le ${fmt(e.register_by)}</span>`) : "";
   const isNewEv = e.first_seen && Date.now() - new Date(e.first_seen) < 2 * 864e5;
   return `<div class="evrow ${st === "ignore" ? "done" : ""}">
@@ -905,7 +905,7 @@ function evRow(e) {
 function renderEvents() {
   const all = DATA.events || [], q = nnorm(EVF.q);
   const list = all.filter(e => (EVF.view === "mine" ? e.notify || evStatus(e.id) === "go" || evStatus(e.id) === "inscrit"
-                               : EVF.view === "near" ? e.reachable : true)
+                               : EVF.view === "local" ? e.local : EVF.view === "near" ? e.reachable : true)
       && (!EVF.source || e.source === EVF.source) && (!EVF.free || e.free)
       && (!q || nnorm(`${e.title} ${e.org} ${e.city}`).includes(q)))
     .sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999") || (b.score || 0) - (a.score || 0));
@@ -917,18 +917,19 @@ function renderEvents() {
   }
   const chip = (v, l, n) => `<button class="chip ${EVF.view === v ? "on" : ""}" data-evview="${v}"><b>${n}</b>${l}</button>`;
   const sources = [...new Set(all.map(e => e.source))].sort();
-  $("v-events").innerHTML = `<div class="page-title"><h1>Events</h1><p>Networking, conférences et événements des banques et fonds — en France ou en ligne, gratuits de préférence. Récap Telegram chaque jour à 19 h.</p></div>
+  $("v-events").innerHTML = `<div class="page-title"><h1>Events</h1><p>Networking, conférences et événements des banques et fonds — autour de Nice et Monaco en priorité, ailleurs en France ou en ligne, gratuits de préférence. Récap Telegram chaque jour à 19 h.</p></div>
     ${mine.length ? `<div class="card" style="margin-bottom:14px"><div class="card-h"><h3>Mes inscriptions</h3><span class="c">${mine.length}</span></div>
       ${mine.slice(0, 5).map(e => `<div class="mini">${jBadge(daysFrom(e.date))}<div class="t"><b>${esc(e.org || e.source)}</b><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a></div></div>`).join("")}</div>` : ""}
     <div class="filters" style="align-items:center">
-      ${chip("mine", "pour toi", all.filter(e => e.notify).length)}${chip("near", "en France ou en ligne", all.filter(e => e.reachable).length)}${chip("all", "tous", all.length)}
+      ${chip("mine", "pour toi", all.filter(e => e.notify).length)}${chip("local", "près de Nice (Côte d'Azur, Monaco)", all.filter(e => e.local).length)}${chip("near", "en France ou en ligne", all.filter(e => e.reachable).length)}${chip("all", "tous", all.length)}
       <input type="search" id="evq" placeholder="Rechercher un événement, une boîte, une ville…" value="${esc(EVF.q)}">
       <select id="evsrc"><option value="">Toutes les sources</option>${sources.map(x => `<option ${EVF.source === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
       <label class="check"><input type="checkbox" id="evfree" ${EVF.free ? "checked" : ""}> Gratuits seulement</label></div>
     ${list.length ? Object.entries(groups).map(([k, g]) => `<div class="section-head"><h2 style="text-transform:capitalize">${esc(k)}</h2><span class="c">${g.length}</span></div>
       <div class="panel">${g.map(evRow).join("")}</div>`).join("")
       : `<div class="panel empty">${all.length ? "Aucun événement ne correspond à ces filtres." : "Pas encore d'événements : ils sont relus toutes les 6 heures."}</div>`}
-    <p class="note">Sources : TrackR (événements des banques et fonds, souvent à Londres ou en ligne), sites carrières des boîtes suivies, Luma et Eventbrite (Paris et France).
+    <p class="note">Sources : TrackR (événements des banques et fonds, souvent à Londres ou en ligne), sites carrières des boîtes suivies, Luma et Eventbrite (Nice, Monaco, Cannes, Sophia, Paris et France).
+      Près de Nice, les événements business et networking comptent aussi (business lunches, afterworks d'entrepreneurs, family offices, private banking) : c'est là que se trouve le réseau.
       « Pour toi » = en France ou en ligne, lié au M&A / PE / marchés ou organisé par une banque ou un fonds, pas payant. Ton suivi (À voir, Inscrit·e) reste dans ce navigateur.</p>`;
 }
 
