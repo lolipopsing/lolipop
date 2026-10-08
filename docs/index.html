@@ -179,6 +179,12 @@ dialog p.d{margin:0 0 16px;color:var(--muted);font-size:12.5px}
 .ev.open{background:var(--ok-soft);color:var(--ok)}
 .ev.me{background:var(--info-soft);color:var(--info)}
 .ev.evt{background:var(--warn-soft);color:var(--warn)}
+.tree{padding:8px 10px 14px}.tkids{margin-left:20px;border-left:1px solid var(--line);padding-left:6px}
+.trow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer;font-size:13px}
+.trow:hover,.trow.on{background:var(--brand-soft)}
+.ttog{width:20px;height:20px;flex:none;border:0;background:none;color:var(--ink);cursor:pointer;font-size:15px;line-height:20px;padding:0;border-radius:4px}.ttog:hover{background:var(--line)}
+.tt{min-width:0;flex:1}.tt b{display:block;font-weight:600}.tt span{display:block;color:var(--ink-2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb{display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.tscore{font-variant-numeric:tabular-nums;min-width:22px;text-align:right}
 .evrow{display:grid;grid-template-columns:56px 1fr auto;gap:14px;align-items:start;padding:14px 16px;border-top:1px solid var(--line)}
 .evrow:first-child{border-top:0}
 .evdate{border:1px solid var(--line);border-radius:10px;text-align:center;padding:6px 0;line-height:1.1;background:var(--surface)}
@@ -547,7 +553,7 @@ function row(j, why) {
       <div class="r-top"><span class="r-co">${esc(j.company)}</span>${j.tier === "1" ? '<span class="tier" title="Boîte prioritaire">★</span>' : ""}
         ${isNew(j) ? '<span class="badge b-warn">Nouvelle</span>' : ""}${j.closed ? '<span class="badge b-bad">Fermée</span>' : ""}
         ${j.manual ? '<span class="badge b-info">Ajoutée par toi</span>' : eligBadge(j)}${j.fit ? '<span class="badge b-ok b-plain">Pour toi</span>' : j.level === "A" && !j.manual ? '<span class="badge b-brand b-plain">Ciblée</span>' : ""}
-        ${j.via ? `<span class="badge b-grey b-plain" title="Trouvée sur ${esc(j.via)}">via ${esc(j.via)}</span>` : ""}
+        ${j.via ? `<span class="badge b-grey b-plain" title="Trouvée sur ${esc(j.via)}">via ${esc(j.via)}</span>` : ""}${netBadge(j.company)}
         ${r.map(x => `<span class="badge b-grey b-plain">${esc(x)}</span>`).join("")}</div>
       <a class="r-title" href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
       <div class="r-meta"><span>${esc([j.location, j.country && !(j.location || "").includes(j.country) ? j.country : ""].filter(Boolean).join(" · ") || "Lieu non précisé")}</span>${j.cycle ? `<span>${esc(j.cycle)}</span>` : ""}<span>${esc(j.category || "")}</span></div>
@@ -560,6 +566,13 @@ function row(j, why) {
       ${j.manual ? `<button class="icon-btn" data-del="${j.id}" title="Supprimer cette offre ajoutée">✕</button>` : ""}
     </div>
   </div>`;
+}
+function netBadge(firm) {  // tu as quelqu'un dans cette boîte : par qui passer
+  const people = (NET.contacts || []).filter(c => c.firm === firm);
+  if (!people.length) return "";
+  const best = people.slice().sort((a, b) => (typeof reach === "function" ? reach(b).score - reach(a).score : 0))[0];
+  const path = typeof pathOf === "function" ? pathOf(best).map(fullName).join(" → ") : fullName(best);
+  return `<span class="badge b-ok b-plain" title="Toi → ${esc(path)}">réseau : ${people.length}</span>`;
 }
 function block(key, title, jobs, hint, why) {
   if (!jobs.length) return "";
@@ -1171,9 +1184,10 @@ function todoRow(c) {
 }
 function renderNet() {
   const S = netStats();
-  const subs = [["overview", "Vue d'ensemble"], ["contacts", "Contacts"], ["carnet", "Carnet des boîtes"], ["firms", "Fiche boîte"], ["messages", "Messages"]];
+  const subs = [["overview", "Vue d'ensemble"], ["tree", "Arbre"], ["contacts", "Contacts"], ["carnet", "Carnet des boîtes"], ["firms", "Fiche boîte"], ["messages", "Messages"]];
   let body = "";
   if (NSUB === "carnet") body = netCarnet(S);
+  else if (NSUB === "tree") body = netTree(S);
   else if (NSUB === "firms") body = netFirms(S);
   else if (!S.C.length) {
     body = `<div class="card" style="padding:28px;text-align:center"><h3 style="margin:0 0 6px">Ton réseau est vide pour l'instant</h3>
@@ -1292,7 +1306,7 @@ function netFirms(S) {
           : `<div class="empty">Note ici les opérations de ${esc(firm)} qui ont retenu ton attention : utile en entretien et pour lancer une conversation (modèle « Message à partir d'un deal »).</div>`}</div>
       <div class="card"><div class="card-h"><h3>Contacts par équipe</h3><span class="c">renseigne l'équipe dans la fiche</span></div>
         ${people.length ? `<div class="org" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">${Object.entries(teams).map(([t, l]) => `<div class="team"><h4>${esc(t)}</h4>
-          ${l.map(c => `<div class="person" style="cursor:pointer" data-nopen="${c.id}">${mono(fullName(c)).replace('class="mono"', 'class="mono" style="width:24px;height:24px;font-size:10px;border-radius:50%"')}${esc(fullName(c))} · <span class="badge ${NSTAT_CLS[c.status]} b-plain">${NSTAT_LABEL[c.status]}</span></div>`).join("")}</div>`).join("")}</div>`
+          ${l.map(c => `<div class="person" style="cursor:pointer" data-nopen="${c.id}">${mono(fullName(c)).replace('style="background', 'style="width:24px;height:24px;font-size:10px;border-radius:50%;background')}${esc(fullName(c))} · <span class="badge ${NSTAT_CLS[c.status]} b-plain">${NSTAT_LABEL[c.status]}</span></div>`).join("")}</div>`).join("")}</div>`
           : `<div class="empty">Aucun contact chez ${esc(firm)}. Cherche des alumni EDHEC sur LinkedIn ou dans l'annuaire, puis ajoute-les.</div>`}
         ${best && offers[0] ? `<div class="path"><b style="margin-right:4px">Chemin vers l'offre :</b><span class="n you">Toi</span>→<span class="n">${esc(fullName(best))} (${NSTAT_LABEL[best.status].toLowerCase()})</span>→<span class="n goal">${esc(offers[0].title)}</span></div>` : ""}</div>
       <div class="card"><div class="card-h"><h3>Offres ouvertes chez ${esc(firm)}</h3></div>
@@ -1355,7 +1369,7 @@ function netMessages(S) {
 /* ---------- fiche contact ---------- */
 function openContact(id, preset = {}) {
   const c = NET.contacts.find(x => x.id === id) || {id: "", first: "", last: "", company: preset.firm || "", firm: preset.firm || "", team: "", position: "", url: "", email: "",
-    alumni: false, status: "repere", next: null, common: "", notes: "", log: []};
+    alumni: false, status: "repere", next: null, common: "", notes: "", log: [], introducedBy: preset.via || ""};
   const offers = openOffersAt(c.firm).slice(0, 3);
   const firmOpts = (DATA.companies || []).map(x => `<option value="${esc(x.name)}">`).join("");
   $("ndlg").innerHTML = `<form method="dialog" class="nform" id="nform">
@@ -1393,7 +1407,9 @@ function introChain(c) {  // Toi → X → Y → ce contact
 function saveContact(id) {
   const f = $("nform"), v = Object.fromEntries(new FormData(f));
   let c = NET.contacts.find(x => x.id === id);
-  if (!c) { c = {id: "c" + Date.now().toString(36), company: v.firm, log: [], source: "manuel", created: new Date().toISOString()}; NET.contacts.push(c); }
+  if (!c) { c = {id: "c" + Date.now().toString(36), company: v.firm, log: [], source: "manuel", created: new Date().toISOString()};
+    if (v.introducedBy) { c.link = "con"; c.ask = "a_demander"; } else c.known = true;
+    NET.contacts.push(c); }
   const prev = c.status;
   Object.assign(c, {first: v.first.trim(), last: v.last.trim(), firm: v.firm.trim(), team: v.team.trim(), position: v.position.trim(), url: v.url.trim(),
                     common: v.common.trim(), notes: v.notes, alumni: !!v.alumni, status: v.status,
@@ -1406,6 +1422,217 @@ function saveContact(id) {
     if (dflt && !(v.ndate && v.nlabel && prev)) c.next = {date: addDays(dflt[0]), label: dflt[1]};
   }
   saveNet(); render();
+}
+
+/* ---------- arbre du réseau ----------
+   Niveau 1 = les gens que tu connais vraiment (pas de « présenté par »).
+   Niveau 2+ = leurs connexions : « recommandé » (il t'a dit de le contacter) ou « connecté » (il faut demander l'intro).
+   c.introducedBy = l'intermédiaire, c.link = "rec" | "con", c.ask = statut de la demande d'intro. */
+const ASK = [["a_demander", "Intro à demander", "b-warn"], ["demande", "Intro demandée", "b-info"], ["intro_ok", "Feu vert / intro faite", "b-ok"], ["refus", "Pas possible", "b-grey"]];
+const ASK_LABEL = Object.fromEntries(ASK.map(([k, l]) => [k, l])), ASK_CLS = Object.fromEntries(ASK.map(([k, , c]) => [k, c]));
+const MAX_OPEN_ASKS = 2;  // demandes d'intro en cours par intermédiaire : au-delà, file d'attente
+let TSEL = "", TQ = "", THIDE = true;
+const ui = () => (NET.ui = NET.ui || {collapsed: {}});
+const kidsOf = id => NET.contacts.filter(c => c.introducedBy === id);
+const viaOf = c => NET.contacts.find(x => x.id === c.introducedBy);
+const isRoot = c => !c.introducedBy || !viaOf(c);
+const known = c => isRoot(c) && (c.known || kidsOf(c.id).length || c.relation || c.warmth || !["repere", ""].includes(c.status || ""));
+function pathOf(c) { const p = []; let cur = c, seen = new Set(); while (cur && !seen.has(cur.id)) { seen.add(cur.id); p.unshift(cur); cur = viaOf(cur); } return p; }
+const TARGET_ROLE = /m&a|fusion|ibd|investment bank|banque d.affaires|corporate finance|private equity|capital[- ]invest|lbo|levfin|leveraged|dette|debt|ecm|dcm|restructuring|transaction services/;
+function reach(c) {  // score de priorité 0–100 + raisons
+  const why = [], f = (NET.firms || {})[c.firm] || {}, comp = (DATA.companies || []).find(x => x.name === c.firm), t = nnorm(`${c.position} ${c.headline || ""}`);
+  let s = 0;
+  const eff = {"1": 25, "2": 15, "3": 5}[f.prio]; if (eff) { s += eff; why.push(`effort ${effortLetter(f.prio)} sur ${c.firm}`); }
+  if (comp) { s += comp.tier === "1" ? 15 : comp.tier === "2" ? 8 : 4; if (comp.tier === "1") why.push("boîte prioritaire"); }
+  const offers = openOffersAt(c.firm), mine = offers.filter(j => j.fit).length;
+  if (offers.length) { s += Math.min(15, 3 + mine * 5); why.push(mine ? `${mine} offre${mine > 1 ? "s" : ""} pour toi` : "offres ouvertes"); }
+  if (TARGET_ROLE.test(t)) { s += 15; why.push("dans un métier cible"); }
+  if (/analyst|analyste|associate|stagiaire|intern/.test(t)) { s += 8; why.push("junior : idéal pour comprendre le recrutement"); }
+  if (/director|directeur|\bvp\b|vice president|managing|\bmd\b|partner|associe|head/.test(t)) { s += 10; why.push("senior : peut te recommander"); }
+  if (/\brh\b|\bhr\b|recrut|talent|campus/.test(t)) { s += 8; why.push("RH / recrutement"); }
+  if (c.alumni || /edhec/.test(t)) { s += 10; why.push("alumni EDHEC"); }
+  if (c.link === "rec") { s += 12; why.push("recommandé par ton contact"); }
+  const via = viaOf(c), w = ({"Chaud": 10, "Tiède": 5})[via && via.warmth] || 0;
+  if (w) { s += w; why.push(`relation ${via.warmth.toLowerCase()} avec ${fullName(via)}`); }
+  return {score: Math.min(100, s), why};
+}
+const openAsks = id => kidsOf(id).filter(k => k.ask === "demande").length;
+function treeQueue() {  // demandes d'intro à faire : les meilleures, max 2 en cours par intermédiaire
+  const out = [], used = {};
+  for (const c of NET.contacts.filter(c => !isRoot(c) && c.ask === "a_demander").map(c => ({c, r: reach(c)})).sort((a, b) => b.r.score - a.r.score)) {
+    const v = c.c.introducedBy; used[v] = used[v] ?? openAsks(v);
+    if (used[v] >= MAX_OPEN_ASKS) continue;
+    used[v]++; out.push(c);
+  }
+  return out;
+}
+function hubs() {  // intermédiaires qui ouvrent le plus de boîtes cibles
+  const target = n => n && (((NET.firms || {})[n] || {}).prio === "1" || ((DATA.companies || []).find(x => x.name === n) || {}).tier === "1" || openOffersAt(n).some(j => j.fit));
+  return NET.contacts.filter(isRoot).map(c => {
+    const firms = new Set(); const walk = id => kidsOf(id).forEach(k => { if (target(k.firm)) firms.add(k.firm); walk(k.id); }); walk(c.id);
+    return {c, firms: [...firms]};
+  }).filter(x => x.firms.length).sort((a, b) => b.firms.length - a.firms.length).slice(0, 5);
+}
+function gaps() {  // boîtes visées sans aucun contact
+  const withC = new Set(NET.contacts.map(c => c.firm).filter(Boolean));
+  const want = allFirms().filter(f => ((NET.firms || {})[f.name] || {}).prio === "1" || openOffersAt(f.name).some(j => j.fit));
+  return want.filter(f => !withC.has(f.name)).map(f => f.name).slice(0, 10);
+}
+function tNode(c, lvl) {
+  const kids = kidsOf(c.id).filter(k => !THIDE || reach(k).score >= 20 || kidsOf(k.id).length || k.ask && k.ask !== "a_demander")
+    .sort((a, b) => reach(b).score - reach(a).score);
+  const q = nnorm(TQ), match = !q || nnorm(`${fullName(c)} ${c.firm} ${c.position} ${c.headline || ""}`).includes(q);
+  const kidHtml = kids.map(k => tNode(k, lvl + 1)).filter(Boolean);
+  if (!match && !kidHtml.length) return "";
+  const open = !ui().collapsed[c.id] || (q && kidHtml.length), r = lvl > 1 ? reach(c) : null;
+  const badge = lvl === 1 ? (c.warmth ? `<span class="badge ${c.warmth === "Chaud" ? "b-warn" : "b-grey"} b-plain">${esc(c.warmth)}</span>` : "")
+    : `${c.link === "rec" ? '<span class="badge b-ok b-plain">recommandé</span>' : '<span class="badge b-grey b-plain">connecté</span>'}${c.ask ? `<span class="badge ${ASK_CLS[c.ask]}">${ASK_LABEL[c.ask]}</span>` : ""}<b class="tscore" style="color:${r.score >= 60 ? "var(--ok)" : "var(--ink-2)"}">${r.score}</b>`;
+  return `<div class="tn"><div class="trow ${TSEL === c.id ? "on" : ""}" data-tsel="${c.id}">
+      ${kids.length ? `<button class="ttog" data-ttog="${c.id}" aria-label="${open ? "Replier" : "Déplier"}">${open ? "▾" : "▸"}</button>` : '<span class="ttog"></span>'}
+      ${mono(fullName(c)).replace('style="background', 'style="width:26px;height:26px;font-size:10.5px;border-radius:50%;flex:none;background')}
+      <div class="tt"><b>${esc(fullName(c))}</b><span>${esc([c.position || c.headline, c.firm].filter(Boolean).join(" · "))}</span></div>
+      <div class="tb">${kids.length && !open ? `<span class="sub">${kids.length} connexion${kids.length > 1 ? "s" : ""}</span>` : ""}${badge}</div></div>
+    ${kids.length && open ? `<div class="tkids">${kidHtml.join("")}</div>` : ""}</div>`;
+}
+function blurb(t) {
+  const me = (DATA.profile || {}).name || "";
+  return `${me}, en Master in Finance à l'EDHEC (promotion 2029), a fait un premier stage d'analyste M&A chez Assurances du Crédit Mutuel (DCF, comparables, mémorandum d'information). Je cherche un stage en M&A à partir de juin 2027 et j'aimerais beaucoup échanger 15 minutes avec ${fullName(t)} pour comprendre son métier et la façon dont ${t.firm || "son équipe"} recrute.`;
+}
+function askMessages(t) {
+  const v = viaOf(t); if (!v) return [];
+  const vous = (v.relation || "") === "Professeur" || v.formal;
+  const pv = v.first || fullName(v), pt = t.first || fullName(t), me = ((DATA.profile || {}).name || "").split(" ")[0];
+  if (t.link === "rec") return [
+    [`Prévenir ${pv}`, vous ? `Bonjour ${pv},\n\nMerci encore de m'avoir conseillé de contacter ${fullName(t)}. Je lui écris cette semaine de votre part et je vous tiens au courant de la suite.\n\nBelle journée,\n${me}` : `Salut ${pv}, merci encore de m'avoir parlé de ${pt} ! Je lui écris cette semaine de ta part, je te tiens au courant.\n${me}`],
+    [`Écrire à ${pt}`, `Bonjour ${pt},\n\n${fullName(v)} m'a conseillé de vous écrire. ${blurb(t).replace(/^[^,]+, /, "En ").replace("Je cherche", "je cherche")}\n\nAuriez-vous un créneau dans les prochaines semaines ? Je m'adapte à vos disponibilités.\n\nMerci beaucoup,\n${me}`]];
+  return [
+    [`Demander l'intro à ${pv}`, vous ? `Bonjour ${pv},\n\nJ'espère que vous allez bien. Je vois que vous êtes en contact avec ${fullName(t)} (${[t.position || t.headline, t.firm].filter(Boolean).join(", ")}). Accepteriez-vous de me mettre en relation ? Mon objectif : 15 minutes pour comprendre comment son équipe travaille et recrute.\n\nJe vous joins un court paragraphe que vous pouvez lui transférer tel quel. Merci beaucoup,\n${me}` : `Salut ${pv}, j'espère que tu vas bien ! Je vois que tu es en contact avec ${fullName(t)} (${[t.position || t.headline, t.firm].filter(Boolean).join(", ")}). Est-ce que tu accepterais de me mettre en relation ? Juste 15 minutes pour comprendre comment son équipe travaille et recrute. Je te mets un petit paragraphe à lui transférer tel quel. Merci beaucoup !\n${me}`],
+    [`Paragraphe à transférer à ${pt}`, blurb(t)]];
+}
+function treeSide() {
+  const c = NET.contacts.find(x => x.id === TSEL);
+  if (!c) return `<div class="empty">Clique sur une personne pour voir son chemin, sa priorité et les messages prêts à envoyer.</div>`;
+  const path = pathOf(c), r = reach(c), lvl = path.length, kids = kidsOf(c.id);
+  const msgs = lvl > 1 ? askMessages(c) : [];
+  return `<div class="card-h"><h3>${esc(fullName(c))}</h3><span class="c">niveau ${lvl}</span><a data-nopen="${c.id}">Fiche</a></div>
+    <div style="padding:6px 16px 16px;display:grid;gap:10px;font-size:13px">
+      <div>${esc([c.position || c.headline, c.firm].filter(Boolean).join(" · ") || "—")}${c.location ? `<div class="sub">${esc(c.location)}</div>` : ""}</div>
+      <div class="path" style="margin:0"><span class="n you">Toi</span>→${path.map((p, i) => `<span class="n ${i === path.length - 1 ? "goal" : ""}">${esc(fullName(p))}</span>`).join("→")}</div>
+      ${lvl > 1 ? `<div class="grid2"><label class="fld">Lien<select data-tlink="${c.id}"><option value="con" ${c.link !== "rec" ? "selected" : ""}>Simplement connecté</option><option value="rec" ${c.link === "rec" ? "selected" : ""}>Recommandé par ${esc(viaOf(c) ? fullName(viaOf(c)) : "")}</option></select></label>
+        <label class="fld">Demande d'intro<select data-task="${c.id}"><option value="">—</option>${ASK.map(([k, l]) => `<option value="${k}" ${c.ask === k ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>
+        <div style="padding:8px 10px;background:var(--bg-2, var(--surface));border:1px solid var(--line);border-radius:8px"><b>Priorité ${r.score}/100</b><div class="sub">${esc(r.why.join(" · ") || "peu d'éléments : complète son poste et sa boîte")}</div></div>
+        ${openAsks(c.introducedBy) >= MAX_OPEN_ASKS && c.ask === "a_demander" ? `<div class="urgent">Déjà ${openAsks(c.introducedBy)} demandes en cours chez ${esc(fullName(viaOf(c)))} : attends une réponse avant de lui en demander une autre.</div>` : ""}
+        ${msgs.map(([label, text], i) => `<div><div class="sub" style="display:flex;justify-content:space-between">${esc(label)}<a data-tcopy="${i}">Copier</a></div><textarea id="tmsg${i}" style="width:100%;min-height:${i ? 90 : 120}px;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:12.5px;background:var(--surface);color:var(--ink)">${esc(text)}</textarea></div>`).join("")}`
+      : `<label class="check"><input type="checkbox" data-tknown="${c.id}" ${known(c) ? "checked" : ""}> Je connais vraiment cette personne (niveau 1)</label>
+        <div class="sub">${c.relation ? esc(c.relation) + " · " : ""}${kids.length} connexion${kids.length > 1 ? "s" : ""} ajoutée${kids.length > 1 ? "s" : ""} · ${openAsks(c.id)} demande${openAsks(c.id) > 1 ? "s" : ""} d'intro en cours (max ${MAX_OPEN_ASKS})</div>`}
+      <div class="acts"><button class="btn sm" data-tpaste="${c.id}">Coller les relations de ${esc(c.first || fullName(c))}</button><button class="btn sm ghost" data-taddkid="${c.id}">+ Une personne</button></div>
+    </div>`;
+}
+function netTree(S) {
+  const roots = NET.contacts.filter(c => isRoot(c) && known(c)).sort((a, b) => kidsOf(b.id).length - kidsOf(a.id).length || fullName(a).localeCompare(fullName(b)));
+  const others = NET.contacts.filter(c => isRoot(c) && !known(c)).length;
+  const queue = treeQueue().slice(0, 6), H = hubs(), G = gaps();
+  return `<div class="filters"><input type="search" id="tq" placeholder="Chercher une personne, une boîte, un poste…" value="${esc(TQ)}">
+      <label class="check"><input type="checkbox" id="thide" ${THIDE ? "checked" : ""}> Masquer les connexions hors cible</label>
+      <span class="spacer"></span><button class="btn sm ghost" data-tall="open">Tout déplier</button><button class="btn sm ghost" data-tall="close">Tout replier</button>
+      <button class="btn sm" data-tnewroot>+ Quelqu'un que je connais</button></div>
+    <div class="grid3" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
+      <div class="card"><div class="card-h"><h3>Ton arbre</h3><span class="c">${roots.length} personne${roots.length > 1 ? "s" : ""} que tu connais${others ? ` · ${others} relation${others > 1 ? "s" : ""} LinkedIn non classée${others > 1 ? "s" : ""} (onglet Contacts)` : ""}</span></div>
+        <div class="tree"><div class="trow" style="cursor:default"><span class="ttog"></span><div class="mono" style="width:26px;height:26px;font-size:10px;border-radius:50%;background:var(--ink)">Toi</div><div class="tt"><b>${esc((DATA.profile || {}).name || "Toi")}</b></div></div>
+          <div class="tkids">${roots.map(c => tNode(c, 1)).join("") || `<div class="empty">Ajoute les gens que tu connais vraiment (bouton en haut à droite), puis colle leurs relations LinkedIn.</div>`}</div></div></div>
+      <div style="display:grid;gap:14px;align-content:start">
+        <div class="card" id="tside">${treeSide()}</div>
+        <div class="card"><div class="card-h"><h3>Intros à demander en priorité</h3><span class="c">max ${MAX_OPEN_ASKS} en cours par intermédiaire</span></div>
+          ${queue.length ? queue.map(({c, r}) => `<div class="mini" style="cursor:pointer" data-tsel="${c.id}"><b class="tscore" style="min-width:26px">${r.score}</b><div class="t"><b>${esc(fullName(c))}${c.firm ? " · " + esc(c.firm) : ""}</b><span class="l">via ${esc(fullName(viaOf(c)))} · ${esc(r.why.slice(0, 2).join(", "))}</span></div></div>`).join("")
+            : `<div class="empty">Rien en attente. Colle les relations d'un de tes contacts pour trouver qui demander.</div>`}</div>
+        ${H.length ? `<div class="card"><div class="card-h"><h3>Tes meilleurs intermédiaires</h3><span class="c">boîtes cibles atteignables</span></div>${H.map(h => `<div class="mini" style="cursor:pointer" data-tsel="${h.c.id}"><b class="tscore">${h.firms.length}</b><div class="t"><b>${esc(fullName(h.c))}</b><span class="l">${esc(h.firms.slice(0, 4).join(", "))}${h.firms.length > 4 ? "…" : ""}</span></div></div>`).join("")}</div>` : ""}
+        ${G.length ? `<div class="card"><div class="card-h"><h3>Boîtes visées sans aucun chemin</h3></div><div style="padding:4px 16px 14px;font-size:13px">${G.map(g => `<a data-nfirm="${esc(g)}" style="margin-right:10px;cursor:pointer">${esc(g)}</a>`).join("")}<div class="sub" style="margin-top:6px">Effort A ou offres pour toi, mais personne dans ton réseau : cherche des alumni EDHEC chez eux, ou colle les relations de quelqu'un qui pourrait les connaître.</div></div></div>` : ""}
+      </div></div>`;
+}
+
+/* ---------- coller les relations LinkedIn d'un contact ---------- */
+const LI_NOISE = /^(message|se connecter|connect|suivre|follow|voir le profil|view .*profile|relations? en commun|mutual connection|\d+ (autres? )?relations?|statut|status|actuellement|current|anciennement|past|résumé|summary|en savoir plus|plus|more|envoyer|pending|en attente|•\s*\d.*|\d(e|er|nd|rd|th)\+?|.*degree connection|page \d+|suivant|précédent|next|previous|abonnés?|followers?)$/i;
+function parseLinkedIn(text) {
+  const lines = text.split(/\r?\n/).map(l => l.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const out = [], seen = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    let l = lines[i], m = l.match(/^(?:voir le profil de|view)\s+(.+?)(?:['’]s profile)?$/i);
+    let name = m ? m[1] : null;
+    const deg = /^(.+?)\s*[•·]\s*(1er|1st|2e|2nd|3e\+?|3rd\+?)\b/i.exec(l);
+    if (!name && deg) name = deg[1];
+    if (!name && /^[A-ZÀ-Ý][\p{L}'’.-]+(\s+[A-ZÀ-Ý][\p{L}'’.-]+){1,3}$/u.test(l) && i + 1 < lines.length && /[•·]\s*(1er|1st|2e|2nd|3e|3rd)|^(1er|1st|2e|2nd|3e\+?|3rd\+?)$/i.test(lines[i + 1])) name = l;
+    if (!name) continue;
+    name = name.replace(/[•·].*$/, "").replace(/\s*\(.*?\)\s*$/, "").trim();
+    if (seen.has(name.toLowerCase()) || name.length < 4 || LI_NOISE.test(name)) continue;
+    let j = i + 1; const rest = [];
+    while (j < lines.length && rest.length < 4) {
+      const x = lines[j];
+      if (/^(?:voir le profil de|view)\s/i.test(x) || /[•·]\s*(1er|1st|2e|2nd|3e|3rd)/i.test(x) && j > i + 1) break;
+      if (!LI_NOISE.test(x) && x !== name && !/^[•·]/.test(x)) rest.push(x);
+      j++;
+    }
+    const cur = rest.find(x => /^(actuellement|current)\s*:/i.test(x));
+    const headline = (cur || rest[0] || "").replace(/^(actuellement|current)\s*:\s*/i, "");
+    const location = rest.find(x => x !== headline && /,|france|paris|london|londres|région|area|monaco|nice|lyon|royaume|kingdom|états|united/i.test(x)) || "";
+    const comp = (headline.match(/\s(?:chez|at|@|-|–|\|)\s+([^|,·]+?)(?:\s*[|,·]|$)/i) || [])[1] || "";
+    seen.add(name.toLowerCase());
+    out.push({name, headline, location, company: comp.trim()});
+  }
+  return out;
+}
+function relevance(p) {
+  const firm = matchFirm(p.company) || matchFirm(p.headline), t = nnorm(p.headline);
+  const fin = TARGET_ROLE.test(t) || /banquier|banker|analyst|analyste|associate|investment|investissement|finance|\brh\b|recrut|talent/.test(t);
+  return {firm, level: firm && fin ? "fort" : firm || TARGET_ROLE.test(t) ? "moyen" : "faible"};
+}
+let TPASTE = {via: "", rows: []};
+function openPaste(viaId) {
+  const v = NET.contacts.find(c => c.id === viaId);
+  TPASTE = {via: viaId, rows: []};
+  $("ndlg").innerHTML = `<form method="dialog" class="nform" style="width:min(720px,94vw)"><h3>Coller les relations de ${esc(fullName(v))}</h3>
+    <p class="d">Sur LinkedIn, ouvre le profil de ${esc(v.first || fullName(v))} → <b>Relations</b> (ou une recherche filtrée sur ses relations, par boîte), sélectionne toute la liste et colle-la ici. Une page à la fois, autant de fois que tu veux : les doublons sont ignorés.</p>
+    <textarea id="tpaste" placeholder="Marie Lefèvre&#10;• 2e&#10;Associate M&A chez ODDO BHF&#10;Paris, Île-de-France, France&#10;…" style="width:100%;min-height:150px;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:12.5px;background:var(--surface);color:var(--ink)"></textarea>
+    <div id="tprev"></div>
+    <div class="dlg-actions"><button class="btn ghost" value="cancel">Fermer</button><button class="btn" id="tpdo" value="cancel" type="button">Ajouter les personnes cochées</button></div></form>`;
+  $("ndlg").showModal();
+}
+function previewPaste() {
+  FIRM_KEYS = null;
+  const known = new Set(NET.contacts.map(c => nnorm(fullName(c))));
+  TPASTE.rows = parseLinkedIn($("tpaste").value).map(p => ({...p, ...relevance(p), dup: known.has(nnorm(p.name))}));
+  const order = {fort: 0, moyen: 1, faible: 2};
+  TPASTE.rows.sort((a, b) => order[a.level] - order[b.level]);
+  $("tprev").innerHTML = TPASTE.rows.length ? `<div class="sub" style="margin:8px 0">${TPASTE.rows.length} personne${TPASTE.rows.length > 1 ? "s" : ""} lue${TPASTE.rows.length > 1 ? "s" : ""} · ${TPASTE.rows.filter(r => r.level === "fort").length} intérêt fort (pré-cochées)</div>
+    <div style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:8px">${TPASTE.rows.map((r, i) => `<label class="check" style="display:grid;grid-template-columns:22px minmax(0,1.2fr) minmax(0,1.8fr) 60px;gap:8px;padding:6px 10px;border-top:1px solid var(--line);${r.level === "faible" ? "color:var(--ink-3)" : ""}">
+      <input type="checkbox" data-tprow="${i}" ${r.level === "fort" && !r.dup ? "checked" : ""}><b>${esc(r.name)}${r.dup ? ' <span class="sub" style="display:inline">(déjà là)</span>' : ""}</b>
+      <span>${r.firm ? `<b>${esc(r.firm)}</b> · ` : ""}${esc(r.headline.slice(0, 90))}</span><span style="color:${r.level === "fort" ? "var(--ok)" : r.level === "moyen" ? "var(--warn)" : "var(--ink-3)"}">${r.level}</span></label>`).join("")}</div>`
+    : `<p class="sub" style="margin-top:8px">Rien de reconnu pour l'instant : vérifie que tu as copié la liste avec les noms et les postes.</p>`;
+}
+function doPaste() {
+  const picked = [...document.querySelectorAll("[data-tprow]")].filter(x => x.checked).map(x => TPASTE.rows[+x.dataset.tprow]);
+  let n = 0;
+  for (const r of picked) {
+    const ex = NET.contacts.find(c => nnorm(fullName(c)) === nnorm(r.name));
+    if (ex) { ex.altVia = [...new Set([...(ex.altVia || []), TPASTE.via])].filter(v => v !== ex.introducedBy); continue; }
+    const [first, ...last] = r.name.split(" ");
+    NET.contacts.push({id: "c" + Date.now().toString(36) + (n++), first, last: last.join(" "), company: r.firm || r.company, firm: r.firm || "", team: "",
+      position: r.headline, headline: r.headline, location: r.location, url: "", email: "", alumni: /edhec/i.test(r.headline), status: "repere", next: null,
+      common: "", notes: "", introducedBy: TPASTE.via, link: "con", ask: "a_demander", log: [{d: isoDay(), type: "note", text: "Ajouté depuis les relations LinkedIn de " + fullName(NET.contacts.find(c => c.id === TPASTE.via))}],
+      source: "linkedin-2e", created: new Date().toISOString()});
+  }
+  saveNet(); $("ndlg").close(); render();
+}
+function setAsk(c, v) {
+  const via = viaOf(c), prev = c.ask; c.ask = v;
+  c.log = (c.log || []).concat({d: isoDay(), type: "note", text: "Intro : " + (ASK_LABEL[v] || "—")});
+  if (v === "demande" && via) via.next = {date: addDays(5), label: `Relancer pour l'intro à ${fullName(c)}`};
+  if (v === "intro_ok") {
+    c.next = {date: isoDay(), label: "Écrire (intro faite)"};
+    if (via) { via.next = {date: isoDay(), label: `Remercier pour l'intro à ${fullName(c)}`};
+      via.log = (via.log || []).concat({d: isoDay(), type: "note", text: `M'a présenté à ${fullName(c)}`}); }
+  }
+  if (prev === "intro_ok" && v !== "intro_ok" && c.next && /intro faite/.test(c.next.label)) c.next = null;
+  saveNet();
 }
 
 /* ---------- événements ---------- */
@@ -1439,6 +1666,14 @@ document.addEventListener("click", e => {
   if ((el = hit("[data-nmsg]"))) { NMSG.contact = el.dataset.nmsg; NSUB = "messages"; $("ndlg").close(); render(); return; }
   if (hit("[data-ncopy]")) { const ta = $("nmtext"); ta.select(); navigator.clipboard ? navigator.clipboard.writeText(ta.value) : document.execCommand("copy"); hit("[data-ncopy]").textContent = "Copié ✓"; return; }
   if ((el = hit("#ndo")) && !el.disabled) { doImport(); return; }
+  if ((el = hit("[data-ttog]"))) { const u = ui(); u.collapsed[el.dataset.ttog] = !u.collapsed[el.dataset.ttog]; saveNet(); render(); return; }
+  if ((el = hit("[data-tall]"))) { const u = ui(); u.collapsed = {}; if (el.dataset.tall === "close") NET.contacts.forEach(c => { if (kidsOf(c.id).length) u.collapsed[c.id] = true; }); saveNet(); render(); return; }
+  if ((el = hit("[data-tsel]"))) { TSEL = el.dataset.tsel; NSUB = "tree"; render(); return; }
+  if ((el = hit("[data-tpaste]"))) { openPaste(el.dataset.tpaste); return; }
+  if ((el = hit("#tpdo"))) { doPaste(); return; }
+  if ((el = hit("[data-taddkid]"))) { openContact("", {via: el.dataset.taddkid}); return; }
+  if (hit("[data-tnewroot]")) { openContact("", {}); return; }
+  if ((el = hit("[data-tcopy]"))) { const ta = $("tmsg" + el.dataset.tcopy); navigator.clipboard ? navigator.clipboard.writeText(ta.value) : (ta.select(), document.execCommand("copy")); el.textContent = "Copié ✓"; return; }
   if ((el = hit("[data-copy]"))) { navigator.clipboard && navigator.clipboard.writeText(el.dataset.copy); el.textContent = "✓"; return; }
   if ((el = hit("[data-ndeal]"))) { openDeal(NFIRM, el.dataset.ndeal); return; }
   if ((el = hit("[data-ndealsave]"))) { e.preventDefault(); if (!$("dform").reportValidity()) return; saveDeal(NFIRM, el.dataset.ndealsave); $("ndlg").close(); return; }
@@ -1465,6 +1700,10 @@ document.addEventListener("change", e => {
   if (e.target.id === "nfstatus") { firmNote(NFIRM).status = e.target.value; touchFirm(NFIRM); render(); }
   if (e.target.id === "nfnext" || e.target.id === "nfnextd") { const n = firmNote(NFIRM); n.next = {label: $("nfnext").value.trim(), date: $("nfnextd").value}; if (!n.next.label && !n.next.date) n.next = null; touchFirm(NFIRM); render(); }
   if (e.target.id === "ncs") { NCARNET.status = e.target.value; render(); }
+  if (e.target.dataset && e.target.dataset.task !== undefined) { setAsk(NET.contacts.find(c => c.id === e.target.dataset.task), e.target.value); render(); }
+  if (e.target.dataset && e.target.dataset.tlink !== undefined) { const c = NET.contacts.find(x => x.id === e.target.dataset.tlink); c.link = e.target.value; if (c.link === "rec" && c.ask === "a_demander") c.ask = "intro_ok"; saveNet(); render(); }
+  if (e.target.dataset && e.target.dataset.tknown !== undefined) { const c = NET.contacts.find(x => x.id === e.target.dataset.tknown); c.known = e.target.checked; saveNet(); render(); }
+  if (e.target.id === "thide") { THIDE = e.target.checked; render(); }
   if (e.target.id === "nfnotes") { firmNote(NFIRM).notes = e.target.value; touchFirm(NFIRM); }
   if (e.target.id === "ncp") { NCARNET.prio = e.target.value; render(); }
   if (e.target.id === "ncc") { NCARNET.cat = e.target.value; render(); }
@@ -1475,6 +1714,8 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("input", e => {
   if (e.target.id === "nq") { NFILTER.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("nq"); q.focus(); q.setSelectionRange(pos, pos); }
+  if (e.target.id === "tq") { TQ = e.target.value; const pos = e.target.selectionStart; render(); const q = $("tq"); q.focus(); q.setSelectionRange(pos, pos); }
+  if (e.target.id === "tpaste") { clearTimeout(window._tpT); window._tpT = setTimeout(previewPaste, 300); }
   if (e.target.id === "evq") { EVF.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("evq"); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === "ncq") { NCARNET.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("ncq"); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === "nfnotes") { clearTimeout(window._nfT); const v = e.target.value, f = NFIRM; window._nfT = setTimeout(() => { firmNote(f).notes = v; touchFirm(f); }, 600); }
