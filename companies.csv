@@ -1,5 +1,5 @@
 name,category,tier,hq,source,source_id,source_url,careers_url
-BNP Paribas,Banque BB,1,Paris,manuel,,,https://group.bnpparibas/
+BNP Paribas,Banque BB,1,Paris,wp_jobs,,https://www.bnpparibas.co.uk/wp-json/wp/v2/jobs,https://www.bnpparibas.co.uk/en/join-us/
 Bank of America,Banque BB,1,New York,workday,ghr.wd1/lateral-emea|Lateral-US,,https://careers.bankofamerica.com
 Bank of America,Banque BB,1,New York,oleeo,bankcampuscareers,,https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4/candidate/jobboard/vacancy/1/adv/
 Barclays,Banque BB,1,London,workday,barclays.wd3/External_Career_Site_Barclays,,https://search.jobs.barclays

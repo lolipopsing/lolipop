@@ -537,6 +537,25 @@ def brassring(src):
     return out
 
 
+def wp_jobs(src):
+    """WordPress sites that publish jobs as a post type (BNP Paribas UK). source_url: the REST endpoint,
+    e.g. https://www.bnpparibas.co.uk/wp-json/wp/v2/jobs."""
+    out = []
+    for page in (1, 2, 3):
+        try:
+            d = get_json(f'{src["source_url"]}?per_page=100&page={page}&orderby=date&order=desc')
+        except Exception:
+            if page == 1:
+                raise
+            break
+        for j in d:
+            out.append({"key": str(j["id"]), "title": _clean((j.get("title") or {}).get("rendered")), "location": "",
+                        "url": j.get("link", ""), "posted": _date(j.get("date"))})
+        if len(d) < 100:
+            break
+    return out
+
+
 AGGREGATORS = {"linkedin": linkedin, "jobteaser": jobteaser, "wttj": wttj, "trackr": trackr}
 
 
@@ -544,6 +563,6 @@ FETCHERS = {
     "workday": workday, "oracle": oracle, "greenhouse": greenhouse, "lever": lever, "ashby": ashby,
     "smartrecruiters": smartrecruiters, "recruitee": recruitee, "workable": workable, "pinpoint": pinpoint,
     "rss": rss, "teamtailor": rss, "goldman": goldman, "eightfold": eightfold, "beesite": beesite,
-    "oleeo": oleeo, "html": html_links, "watch": watch, "wttj_company": wttj_company, "avature": avature, "brassring": brassring,
+    "oleeo": oleeo, "html": html_links, "watch": watch, "wttj_company": wttj_company, "avature": avature, "brassring": brassring, "wp_jobs": wp_jobs,
     **AGGREGATORS,
 }

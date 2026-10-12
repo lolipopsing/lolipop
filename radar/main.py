@@ -108,7 +108,7 @@ def slot(kind, now=None):
 # ------------------------------------------------------------------ firm matching (job boards -> tracked firms)
 FIRM_ALIASES = {"J.P. Morgan": ["jpmorgan", "jpmorganchase", "jpmorganchaseco"], "Bank of America": ["bankofamerica", "bofa", "bofasecurities", "merrilllynch"],
                 "Citi": ["citigroup", "citibank", "citi"], "Société Générale": ["societegenerale", "sgcib", "societegeneralecib"],
-                "Crédit Agricole CIB": ["creditagricolecib", "creditagricolecorporateandinvestmentbank", "cacib"], "BNP Paribas": ["bnpparibas"],
+                "Crédit Agricole CIB": ["creditagricolecib", "creditagricolecorporateandinvestmentbank", "cacib", "creditagricole"], "BNP Paribas": ["bnpparibas"],
                 "Natixis CIB": ["natixis", "natixiscib", "natixiscorporateinvestmentbanking"], "Rothschild & Co": ["rothschild", "rothschildco"],
                 "EY": ["ey", "ernstyoung", "eyparthenon"], "PwC": ["pwc", "pricewaterhousecoopers"], "Goldman Sachs": ["goldmansachs"],
                 "Morgan Stanley": ["morganstanley"], "Houlihan Lokey": ["houlihanlokey"], "Edmond de Rothschild Corporate Finance": ["edmondderothschild"],
@@ -147,13 +147,45 @@ def norm_title(t):
     return " ".join(words)
 
 
-def load_programmes():
-    """Programmes to expect (springs...), with last year's opening date. See programmes.csv."""
+def load_programmes(state=None):
+    """Programmes to expect (springs...), with last year's opening date: programmes.csv, completed by every
+    spring TrackR follows that hasn't opened yet (state["trackr_expected"], refreshed every 6 h)."""
     path = os.path.join(ROOT, "programmes.csv")
-    if not os.path.exists(path):
-        return []
-    with open(path, encoding="utf-8") as f:
-        return [r for r in csv.DictReader(f) if r.get("company") and not r["company"].startswith("#")]
+    rows = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            rows = [r for r in csv.DictReader(f) if r.get("company") and not r["company"].startswith("#")]
+    have = {(r["company"], norm_title(r["program"])) for r in rows}
+    for t in (state or {}).get("trackr_expected", []):
+        nt = norm_title(t["program"])
+        if any(c == t["company"] and (nt in h or h in nt or {"spring", "insight"} & set(nt.split()) & set(h.split())) for c, h in have):
+            continue
+        rows.append(t)
+    return rows
+
+
+def refresh_expected(state, companies):
+    """Springs listed on TrackR that haven't opened yet, with last year's date -> expected this year."""
+    from .http import get_json
+    d = get_json("https://api.the-trackr.com/programmes?region=UK&industry=Finance&season=2027&type=spring-weeks")
+    out = []
+    for p in d.get("programmes", []):
+        last = (p.get("lastYearOpening") or "")[:10]
+        if p.get("openingDate") or not last or set(p.get("categories") or []) & {"Trading and Quant", "Promoted"}:
+            continue
+        firm = match_firm((p.get("company") or {}).get("name") or "", companies)
+        company = firm["name"] if firm else (p.get("company") or {}).get("name") or p.get("companyId")
+        try:
+            y, m, dd = map(int, last.split("-"))
+            exp = date(y + 1, m, min(dd, 28) if m == 2 else dd).isoformat()
+        except ValueError:
+            continue
+        out.append({"company": company, "program": p.get("name", ""), "type": "Spring", "country": "Royaume-Uni",
+                    "last_open": last, "expected_open": exp, "closes": "",
+                    "keywords": re.escape(p.get("name", "")) + "|spring|insight", "url": re.sub(r"[?&]utm_[^&]+", "", p.get("url") or "")
+                    or "https://app.the-trackr.com/uk-finance/spring-weeks", "notes": "date attendue d'après TrackR"})
+    state["trackr_expected"] = out
+    print(f"  TrackR : {len(out)} springs attendues (pas encore ouvertes).")
 
 
 def programme_status(programmes, jobs, companies, today, sources=None):
@@ -237,7 +269,7 @@ def fetch_one(c):
 def fetch_all(companies, state=None):
     """Career sites in parallel; job boards one query at a time per board (they rate-limit).
     With a state, only the sources that are due (see rhythm) are read."""
-    spring_firms = {p["company"] for p in load_programmes()}
+    spring_firms = {p["company"] for p in load_programmes(state)}
     due = []
     for c in companies:
         if c.get("source") not in FETCHERS:
@@ -398,6 +430,10 @@ def scan():
         state["pages_slot"] = slot("normal")
     if state.get("events_slot") != slot("6h"):  # networking events: every 6 h, reported once a day (events_hour)
         events.collect(state, {c["name"] for c in companies if not c.get("aggregator")}, now)
+        try:
+            refresh_expected(state, companies)
+        except Exception as e:
+            print("  ✗ TrackR (springs attendues)", e)
         state["events_slot"] = slot("6h")
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=KEEP_CLOSED_DAYS)).isoformat()
@@ -656,7 +692,7 @@ def digest(cfg, state, companies):
         msg += f"\n\n<i>+ {len(b)} stage(s) hors cible, visibles dans le tableau de bord.</i>"
 
     soon = []
-    for p in programme_status(load_programmes(), state["jobs"], companies, today, state["sources"]):
+    for p in programme_status(load_programmes(state), state["jobs"], companies, today, state["sources"]):
         closes = _d(p.get("closes", ""))
         label = f'<b>{notify.esc(p["company"])}</b> — {notify.esc(p["program"])}'
         link = p.get("job_url") or p.get("url")
@@ -728,7 +764,7 @@ def save(state, companies, cfg):
     with open(DASH_PATH, "w", encoding="utf-8") as f:
         json.dump({"updated": now_iso(), "jobs": out, "companies": comp, "searches": searches, "targets": cfg.get("targets"),
                    "profile": {k: v for k, v in cfg.get("profile", {}).items() if k != "nationality"},
-                   "programmes": programme_status(load_programmes(), state["jobs"], companies, today, state["sources"]),
+                   "programmes": programme_status(load_programmes(state), state["jobs"], companies, today, state["sources"]),
                    "pages": for_dashboard(state),
                    "events": [dict(e, reachable=events.reachable(e), local=events.is_local(e), notify=events.worth_notifying(e))
                               for e in events.upcoming(state)],
