@@ -499,23 +499,32 @@ def trackr(src):
 
 
 def avature(src):
-    """Avature career portals (Macquarie...). source_url: the portal's SearchJobs page,
-    e.g. https://recruitment.macquarie.com/en_US/careers/SearchJobs/. 9 results per page: search by keyword."""
+    """Avature career portals (Macquarie, Deloitte UK...). source_url: the portal's SearchJobs page,
+    e.g. https://recruitment.macquarie.com/en_US/careers/SearchJobs/. Few results per page: search by keyword."""
     base = src["source_url"].split("?")[0]
     out = {}
     for term in SEARCH_TERMS:
-        for offset in range(0, 45, 9):
+        offset = 0
+        while offset < 60:
             page = get_text(f"{base}?search={quote(term)}&jobOffset={offset}")
-            found = re.findall(r'<a[^>]+href="([^"]*JobDetail[^"]*?jobId=(\d+)[^"]*)"[^>]*>\s*(.*?)\s*</a>(.*?)</article>', page, re.S)
-            for url, jid, title, rest in found:
-                loc = re.search(r'list-item-location[^>]*>(.*?)</', rest, re.S) or re.search(r'location[^>]*>\s*([^<]{3,80})<', rest, re.I)
-                out.setdefault(jid, {"key": jid, "title": _clean(title), "location": _clean(loc.group(1)) if loc else "",
-                                     "url": htmllib.unescape(url), "posted": None})
-            if len(found) < 9:
+            fresh, seen_page = 0, set()
+            for m in re.finditer(r'<a[^>]+href="([^"]*JobDetail[^"]*)"[^>]*>(.*?)</a>(.{0,1500})', page, re.S):
+                url, title, after = htmllib.unescape(m.group(1)), _clean(m.group(2)), m.group(3)
+                jid = re.search(r"jobId=(\d+)|/(\d+)/?(?:[?#]|$)", url)
+                if not jid or not title or re.match(r"(view|apply|see|more|email|share)\b", title, re.I):
+                    continue
+                jid = jid.group(1) or jid.group(2)
+                seen_page.add(jid)
+                if jid in out:
+                    continue
+                loc = re.search(r'(?:location|subtitle)[^>]*>\s*([^<]{3,90})<', after, re.I)
+                out[jid] = {"key": jid, "title": title, "location": _clean(loc.group(1)) if loc else "", "url": url, "posted": None}
+                fresh += 1
+            if not fresh or len(seen_page) < 6:
                 break
+            offset += len(seen_page)
             time.sleep(0.5)
     return list(out.values())
-
 
 def brassring(src):
     """BrassRing Talent Gateway (UBS). source_url: the gateway home page. The page embeds the most recently
