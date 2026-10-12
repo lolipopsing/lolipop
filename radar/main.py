@@ -298,7 +298,7 @@ def scan():
     # Same posting seen on a career site and on LinkedIn / JobTeaser / WTTJ: keep one.
     titles = {(j["company"], norm_title(j["title"])): j["id"] for j in jobs.values() if not j.get("closed")}
 
-    seeded_springs = []  # first read of TrackR: what is already open, sent once as a summary
+    seeded_springs = []  # first read of a source: springs already open there, sent once as a summary
     for c, ok, payload, secs in fetch_all(companies, state):
         name, sk = c["name"], skey(c)
         src = state["sources"].setdefault(sk, {"fails": 0})
@@ -375,8 +375,8 @@ def scan():
                     jobs[jid][k] = r[k]
             if not seeding:
                 new.append(jobs[jid])
-            elif c["source"] == "trackr" and not first_run:
-                seeded_springs.append(jobs[jid])
+            elif not first_run and cycle == "Spring / Insight":
+                seeded_springs.append(jobs[jid])  # new source: its open springs are still news, sent once as a summary
         for j in jobs.values():
             if agg and c["source"] != "trackr":
                 break  # a search only shows recent postings: absence means nothing (see the job-board expiry below)
@@ -413,7 +413,7 @@ def scan():
     else:
         opened = sorted([j for j in seeded_springs if fit(j, cfg)], key=sort_key)
         if opened:
-            notify.send(f"🌸 <b>TrackR branché : {len(opened)} spring(s) déjà ouverte(s) pour toi</b>\n\n"
+            notify.send(f"🌸 <b>Nouvelle source branchée : {len(opened)} spring(s) déjà ouverte(s) pour toi</b>\n\n"
                         + "\n\n".join(notify.job_line(j) for j in opened[:30]) + dash_link(cfg))
         mine = [j for j in new if fit(j, cfg)]
         if quiet(cfg):  # night: springs right away, the rest at the end of the night
@@ -664,6 +664,8 @@ def digest(cfg, state, companies):
             label = f'<a href="{notify.esc(link)}">{label}</a>'
         if closes and 0 <= (closes - today).days <= 14:
             soon.append(((closes - today).days, f"⏰ J-{(closes - today).days} · ferme le {closes.strftime('%d/%m')} · {label}"))
+        elif p["status"] in ("en retard", "non surveillée", "source indisponible") and p["days"] is not None and -21 <= p["days"] < 0:
+            soon.append((p["days"], f"⚠️ attendue depuis le {_d(p['expected_open']).strftime('%d/%m')} et pas encore vue par Lolipop : vérifie leur site · {label}"))
         elif p["status"] in ("à venir", "non surveillée") and p["days"] is not None and 0 <= p["days"] <= 7:
             soon.append((p["days"], f"🟡 attendue vers le {_d(p['expected_open']).strftime('%d/%m')} (l'an dernier : {_d(p['last_open']).strftime('%d/%m/%Y')}) · {label}"))
     for j in state["jobs"].values():

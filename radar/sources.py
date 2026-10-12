@@ -498,6 +498,45 @@ def trackr(src):
     return out
 
 
+def avature(src):
+    """Avature career portals (Macquarie...). source_url: the portal's SearchJobs page,
+    e.g. https://recruitment.macquarie.com/en_US/careers/SearchJobs/. 9 results per page: search by keyword."""
+    base = src["source_url"].split("?")[0]
+    out = {}
+    for term in SEARCH_TERMS:
+        for offset in range(0, 45, 9):
+            page = get_text(f"{base}?search={quote(term)}&jobOffset={offset}")
+            found = re.findall(r'<a[^>]+href="([^"]*JobDetail[^"]*?jobId=(\d+)[^"]*)"[^>]*>\s*(.*?)\s*</a>(.*?)</article>', page, re.S)
+            for url, jid, title, rest in found:
+                loc = re.search(r'list-item-location[^>]*>(.*?)</', rest, re.S) or re.search(r'location[^>]*>\s*([^<]{3,80})<', rest, re.I)
+                out.setdefault(jid, {"key": jid, "title": _clean(title), "location": _clean(loc.group(1)) if loc else "",
+                                     "url": htmllib.unescape(url), "posted": None})
+            if len(found) < 9:
+                break
+            time.sleep(0.5)
+    return list(out.values())
+
+
+def brassring(src):
+    """BrassRing Talent Gateway (UBS). source_url: the gateway home page. The page embeds the most recently
+    updated postings ("HotJobs"): enough to catch new ones when read every few minutes."""
+    page = get_text(src["source_url"])
+    m = re.search(r'id="searchResults" type="hidden" value="([^"]*)"', page)
+    if not m:
+        raise ValueError("page BrassRing inattendue")
+    d = json.loads(htmllib.unescape(m.group(1)))
+    out = []
+    for job in ((d.get("Jobs") or d.get("HotJobs") or {}).get("Job") or []):
+        q = {x["QuestionName"]: x.get("Value") or "" for x in job.get("Questions", [])}
+        try:
+            posted = datetime.strptime(q.get("lastupdated", ""), "%d-%b-%Y").date().isoformat()
+        except ValueError:
+            posted = None
+        out.append({"key": q.get("reqid") or job.get("Link"), "title": _clean(q.get("jobtitle")), "location": _clean(q.get("formtext23")),
+                    "url": job.get("Link") or src["source_url"], "posted": posted})
+    return out
+
+
 AGGREGATORS = {"linkedin": linkedin, "jobteaser": jobteaser, "wttj": wttj, "trackr": trackr}
 
 
@@ -505,6 +544,6 @@ FETCHERS = {
     "workday": workday, "oracle": oracle, "greenhouse": greenhouse, "lever": lever, "ashby": ashby,
     "smartrecruiters": smartrecruiters, "recruitee": recruitee, "workable": workable, "pinpoint": pinpoint,
     "rss": rss, "teamtailor": rss, "goldman": goldman, "eightfold": eightfold, "beesite": beesite,
-    "oleeo": oleeo, "html": html_links, "watch": watch, "wttj_company": wttj_company,
+    "oleeo": oleeo, "html": html_links, "watch": watch, "wttj_company": wttj_company, "avature": avature, "brassring": brassring,
     **AGGREGATORS,
 }
