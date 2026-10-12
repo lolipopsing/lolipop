@@ -84,8 +84,8 @@ def rhythm(c, spring_firms):
         return "spring" if c["source_id"].endswith("spring-weeks") else "normal"
     if c.get("aggregator"):
         return "2h" if c["source"] == "jobteaser" else "hourly"
-    if c["source"] == "oleeo":
-        return "normal"
+    if c["source"] == "oleeo":  # bot check when hit too often: every 15 min, except banks that run springs
+        return "spring" if c["name"] in spring_firms else "normal"
     if c.get("category") in SPRING_CATEGORIES or c.get("tier") == "1" or c["name"] in spring_firms:
         return "spring"
     return "normal"

@@ -1,6 +1,7 @@
 name,category,tier,hq,source,source_id,source_url,careers_url
 BNP Paribas,Banque BB,1,Paris,manuel,,,https://group.bnpparibas/
 Bank of America,Banque BB,1,New York,workday,ghr.wd1/lateral-emea|Lateral-US,,https://careers.bankofamerica.com
+Bank of America,Banque BB,1,New York,oleeo,bankcampuscareers,,https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4/candidate/jobboard/vacancy/1/adv/
 Barclays,Banque BB,1,London,workday,barclays.wd3/External_Career_Site_Barclays,,https://search.jobs.barclays
 Citi,Banque BB,1,New York,workday,citi.wd5/2,,https://jobs.citi.com
 Crédit Agricole CIB,Banque BB,1,Paris,html,/offre-de-emploi/emploi-[a-z0-9-]+_\d+\.aspx,https://jobs.ca-cib.com/offre-de-emploi/liste-offres.aspx?mode=list,https://www.ca-cib.com/careers
@@ -341,3 +342,7 @@ Wagram Corporate Finance,M&A Mid-Market,3,Paris,manuel,,,
 Widoowin,M&A Mid-Market,3,Paris,watch,,https://widoowincf.com,https://widoowincf.com
 You Are Capital,M&A Mid-Market,3,Paris,watch,,https://www.youarecapital.com/,https://www.youarecapital.com/
 Zaoui & Co,Boutique M&A,1,Paris,manuel,,,
+PIMCO,Investisseur institutionnel,2,Newport Beach,workday,pimco.wd1/pimco-careers,,https://pimco.wd1.myworkdayjobs.com/pimco-careers
+Point72,Investisseur institutionnel,2,Stamford,greenhouse,point72,,https://point72.com/careers/
+Schroders,Investisseur institutionnel,2,London,oracle,ekbq.fa.em2.oraclecloud.com/CX_2,,https://www.schroders.com/en/careers/
+Fidelity International,Investisseur institutionnel,2,London,workday,fil.wd3/001,,https://careers.fidelityinternational.com/
