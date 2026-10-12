@@ -1,18 +1,20 @@
 name,category,tier,hq,source,source_id,source_url,careers_url
 BNP Paribas,Banque BB,1,Paris,wp_jobs,,https://www.bnpparibas.co.uk/wp-json/wp/v2/jobs,https://www.bnpparibas.co.uk/en/join-us/
+BNP Paribas,Banque BB,1,Paris,wttj_company,bnp-paribas,,https://www.welcometothejungle.com/fr/companies/bnp-paribas/jobs
 Bank of America,Banque BB,1,New York,workday,ghr.wd1/lateral-emea|Lateral-US,,https://careers.bankofamerica.com
 Bank of America,Banque BB,1,New York,oleeo,bankcampuscareers,,https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4/candidate/jobboard/vacancy/1/adv/
 Barclays,Banque BB,1,London,workday,barclays.wd3/External_Career_Site_Barclays,,https://search.jobs.barclays
 Citi,Banque BB,1,New York,workday,citi.wd5/2,,https://jobs.citi.com
 Crédit Agricole CIB,Banque BB,1,Paris,html,/offre-de-emploi/emploi-[a-z0-9-]+_\d+\.aspx,https://jobs.ca-cib.com/offre-de-emploi/liste-offres.aspx?mode=list,https://www.ca-cib.com/careers
+Crédit Agricole CIB,Banque BB,1,Paris,wttj_company,credit-agricole-cib,,https://www.welcometothejungle.com/fr/companies/credit-agricole-cib/jobs
 Deutsche Bank,Banque BB,1,Frankfurt,beesite,api-deutschebank.beesite.de,,https://careers.db.com
 Goldman Sachs,Banque BB,1,New York,goldman,,,https://www.goldmansachs.com/careers
 HSBC,Banque BB,1,London,html,"/external/(?:JobDetail|PipelineDetail)/[^\""']+/\d+",https://mycareer.hsbc.com/en_GB/external/SearchJobs/?keyword=intern,https://www.hsbc.com/careers
 J.P. Morgan,Banque BB,1,New York,oracle,jpmc.fa.oraclecloud.com/CX_1001,,https://careers.jpmorgan.com
 Jefferies,Banque BB,1,New York,oleeo,jefferies,,https://www.jefferies.com/careers
 Morgan Stanley,Banque BB,1,New York,oleeo,morganstanley,,https://www.morganstanley.com/careers
-Natixis CIB,Banque BB,1,Paris,manuel,,,https://www.natixis.com/en/careers
-Société Générale,Banque BB,1,Paris,manuel,,,https://careers.societegenerale.com
+Natixis CIB,Banque BB,1,Paris,wttj_company,natixis,,https://www.welcometothejungle.com/fr/companies/natixis/jobs
+Société Générale,Banque BB,1,Paris,wttj_company,societe-generale,,https://www.welcometothejungle.com/fr/companies/societe-generale/jobs
 UBS,Banque BB,1,Zurich,brassring,,https://jobs.ubs.com/TGnewUI/Search/Home/Home?partnerid=25008&siteid=5131,https://jobs.ubs.com/TGnewUI/Search/Home/Home?partnerid=25008&siteid=5131
 Centerview Partners,Boutique M&A,1,New York,watch,,https://www.centerviewpartners.com/careers.aspx,https://www.centerviewpartners.com/
 Evercore,Boutique M&A,1,New York,oleeo,evercore,,https://www.evercore.com/careers
@@ -32,7 +34,7 @@ Oaktree Capital,Dette Privée,1,Los Angeles,workday,oaktree.wd1/Oaktree,,https:/
 Sixth Street,Dette Privée,1,San Francisco,workday,sixthstreet.wd1/sixthstreetcareers,,https://sixthstreet.com/careers
 Antin Infrastructure Partners,Infra / Real Assets,1,Paris,teamtailor,antininfrastructurepartners-1655458195,,https://www.antin-ip.com/careers
 CPP Investments,Investisseur institutionnel,1,Toronto,workday,cppib.wd10/cppinvestments,,https://www.cppinvestments.com/careers
-GIC,Investisseur institutionnel,1,Singapore,manuel,,,https://www.gic.com.sg/
+GIC,Investisseur institutionnel,1,Singapore,rss,,https://careers.gic.com.sg/services/rss/job/?locale=en_US,https://careers.gic.com.sg
 Temasek,Investisseur institutionnel,1,Singapore,manuel,,,https://www.temasek.com.sg/
 Alantra,M&A Mid-Market,1,Madrid,workday,alantra.wd3/Alantra,,https://www.alantra.com/careers
 DC Advisory,M&A Mid-Market,1,London,manuel,,,https://www.dcadvisory.com/
@@ -45,7 +47,7 @@ Ardian,Private Equity,1,Paris,workday,ardian.wd103/ArdianCareers,,https://www.ar
 Astorg,Private Equity,1,Paris,pinpoint,astorg,,https://www.astorg.com/
 Bain Capital,Private Equity,1,Boston,workday,baincapital.wd1/External_Public,,https://www.baincapital.com/careers
 Blackstone,Private Equity,1,New York,workday,blackstone.wd1/Blackstone_Campus_Careers|Blackstone_Careers,,https://www.blackstone.com/careers
-Bpifrance,Private Equity,1,Paris,manuel,,,https://www.bpifrance.fr/
+Bpifrance,Private Equity,1,Paris,wttj_company,bpi-france-digital,,https://www.welcometothejungle.com/fr/companies/bpi-france-digital/jobs
 Bridgepoint,Private Equity,1,London,manuel,,,https://www.bridgepoint.eu/
 Brookfield,Private Equity,1,Toronto,workday,brookfield.wd5/brookfield,,https://www.brookfield.com/careers
 CVC Capital Partners,Private Equity,1,Luxembourg,manuel,,,https://www.cvc.com/
@@ -61,7 +63,7 @@ PAI Partners,Private Equity,1,Paris,recruitee,paipartners,,https://www.paipartne
 Partners Group,Private Equity,1,Baar,watch,,https://www.partnersgroup.com/en/careers/open-positions,https://www.partnersgroup.com/en/careers
 Permira,Private Equity,1,London,greenhouse,permiraexternalprivate,,https://www.permira.com/careers
 TPG,Private Equity,1,San Francisco,greenhouse,tpgcareers,,https://www.tpg.com/careers
-Tikehau Capital,Private Equity,1,Paris,manuel,,,https://www.tikehaucapital.com/en/careers
+Tikehau Capital,Private Equity,1,Paris,wttj_company,tikehau-capital,,https://www.welcometothejungle.com/fr/companies/tikehau-capital/jobs
 Warburg Pincus,Private Equity,1,New York,greenhouse,warburgpincusllc,,https://warburgpincus.com/careers
 Wendel,Private Equity,1,Paris,manuel,,,https://www.wendelgroup.com/
 MUFG,Banque BB,2,Tokyo,workday,mufgub.wd3/MUFG-Careers,,https://www.mufgemea.com/careers
@@ -69,7 +71,7 @@ Macquarie,Banque BB,1,Sydney,avature,,https://recruitment.macquarie.com/en_US/ca
 Mizuho,Banque BB,2,Tokyo,workday,mizuho.wd1/mizuhoamericas,,https://www.mizuhogroup.com/americas/careers
 Nomura,Banque BB,2,Tokyo,oleeo,nomuracampus,,https://www.nomura.com/careers
 RBC Capital Markets,Banque BB,2,Toronto,workday,rbc.wd3/RBCEARLYTALENT1,,https://jobs.rbc.com
-SMBC,Banque BB,2,Tokyo,watch,,https://www.smbcgroup.com/emea/careers,https://www.smbcgroup.com/emea/careers
+SMBC,Banque BB,2,Tokyo,rss,,https://careersemea.smbcgroup.com/services/rss/job/?locale=en_GB,https://careersemea.smbcgroup.com
 Santander CIB,Banque BB,2,Madrid,workday,santander.wd3/SantanderCareers,,https://www.santandercib.com/careers
 Wells Fargo,Banque BB,2,New York,oleeo,wellsfargo,,https://www.wellsfargojobs.com
 Edmond de Rothschild Corporate Finance,Boutique M&A,2,Paris,manuel,,,https://www.edmond-de-rothschild.com/
@@ -136,7 +138,7 @@ Vitruvian Partners,Private Equity,2,London,workday,vitruvian.wd108/vitruviancare
 Accuracy,Transaction Services,2,Paris,manuel,,,https://www.accuracy.com/careers
 Alvarez & Marsal,Transaction Services,2,New York,workday,alvarezandmarsal.wd1/alvarezandmarsal,,https://www.alvarezandmarsal.com/careers
 Deloitte,Transaction Services,2,London,avature,,https://apply.deloitte.co.uk/UKCareers/SearchJobs/,https://apply.deloitte.co.uk/UKCareers/SearchJobs
-EY,Transaction Services,2,London,watch,,https://www.ey.com/fr_fr,https://www.ey.com/en_gl/careers
+EY,Transaction Services,2,London,wttj_company,ey,,https://www.welcometothejungle.com/fr/companies/ey/jobs
 Eight Advisory,Transaction Services,2,Paris,manuel,,,https://www.8advisory.com/
 KPMG,Transaction Services,2,Amstelveen,watch,,https://kpmg.com/xx/en.html,https://kpmg.com/xx/en/careers.html
 PwC,Transaction Services,2,London,workday,pwc.wd3/Global_Campus_Careers,,https://www.pwc.com/gx/en/careers.html
@@ -150,7 +152,7 @@ Samsung Securities,Banque BB,3,Seoul,manuel,,,https://www.samsungpop.com
 Scotiabank,Banque BB,3,Toronto,rss,,https://jobs.scotiabank.com/services/rss/job/?locale=en_US&keywords=intern,https://jobs.scotiabank.com
 Standard Chartered,Banque BB,3,London,rss,,https://jobs.standardchartered.com/services/rss/job/?locale=en_GB&keywords=intern,https://jobs.standardchartered.com
 TD Securities,Banque BB,3,Toronto,workday,td.wd3/TD_Bank_Careers,,https://jobs.td.com
-UniCredit,Banque BB,3,Milan,watch,,https://www.unicreditgroup.eu/en.html,https://www.unicreditgroup.eu/en/careers.html
+UniCredit,Banque BB,3,Milan,avature,,https://careers.unicredit.eu/en_GB/jobsuche/SearchJobs/,https://careers.unicredit.eu/en_GB/jobsuche/SearchJobs/
 Allen & Company,Boutique M&A,3,New York,manuel,,,https://www.allenco.com/
 Arma Partners,Boutique M&A,3,London,manuel,,,https://www.armapartners.com/careers
 Ducera Partners,Boutique M&A,3,New York,greenhouse,ducerapartners|ducerapartnerscampus,,https://www.ducerapartners.com/careers

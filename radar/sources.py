@@ -508,7 +508,7 @@ def avature(src):
         while offset < 60:
             page = get_text(f"{base}?search={quote(term)}&jobOffset={offset}")
             fresh, seen_page = 0, set()
-            for m in re.finditer(r'<a[^>]+href="([^"]*JobDetail[^"]*)"[^>]*>(.*?)</a>(.{0,1500})', page, re.S):
+            for m in re.finditer(r'<a[^>]+href="([^"]*JobDetail[^"]*)"[^>]*>(.*?)</a>(?=(.{0,1500}))', page, re.S):
                 url, title, after = htmllib.unescape(m.group(1)), _clean(m.group(2)), m.group(3)
                 jid = re.search(r"jobId=(\d+)|/(\d+)/?(?:[?#]|$)", url)
                 if not jid or not title or re.match(r"(view|apply|see|more|email|share)\b", title, re.I):
