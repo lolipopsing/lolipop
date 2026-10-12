@@ -565,6 +565,22 @@ def wp_jobs(src):
     return out
 
 
+def sf_xml(src):
+    """SAP SuccessFactors public job feed (all postings). source_id: "host|company",
+    e.g. "career5.successfactors.eu|PartnersGroup"."""
+    host, company = src["source_id"].split("|")
+    x = get_text(f"https://{host}/career?company={company}&career_ns=job_listing_summary&resultType=XML")
+    out = []
+    for job in x.split("<Job>")[1:]:
+        cdata = lambda t: (re.search(rf"<{t}>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</{t}>", job, re.S) or [None, ""])[1]
+        rid, title = cdata("ReqId").strip(), _clean(cdata("JobTitle"))
+        if not rid or not title:
+            continue
+        out.append({"key": rid, "title": title, "location": "", "posted": None, "description": cdata("Job-Description"),
+                    "url": f"https://{host}/career?company={company}&career_ns=job_application&career_job_req_id={rid}"})
+    return out
+
+
 AGGREGATORS = {"linkedin": linkedin, "jobteaser": jobteaser, "wttj": wttj, "trackr": trackr}
 
 
@@ -572,6 +588,6 @@ FETCHERS = {
     "workday": workday, "oracle": oracle, "greenhouse": greenhouse, "lever": lever, "ashby": ashby,
     "smartrecruiters": smartrecruiters, "recruitee": recruitee, "workable": workable, "pinpoint": pinpoint,
     "rss": rss, "teamtailor": rss, "goldman": goldman, "eightfold": eightfold, "beesite": beesite,
-    "oleeo": oleeo, "html": html_links, "watch": watch, "wttj_company": wttj_company, "avature": avature, "brassring": brassring, "wp_jobs": wp_jobs,
+    "oleeo": oleeo, "html": html_links, "watch": watch, "wttj_company": wttj_company, "avature": avature, "brassring": brassring, "wp_jobs": wp_jobs, "sf_xml": sf_xml,
     **AGGREGATORS,
 }
