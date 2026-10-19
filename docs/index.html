@@ -146,6 +146,8 @@ dialog p.d{margin:0 0 16px;color:var(--muted);font-size:12.5px}
 .icon-btn{border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:4px 6px;border-radius:6px}
 .icon-btn:hover{background:var(--bad-soft);color:var(--bad)}
 .btn.sm{height:28px;padding:0 10px;font-size:12px}
+.backup{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font-size:13px}
+.backup span{flex:1;min-width:200px}
 .acts{display:flex;gap:6px;flex-wrap:wrap}
 .facts{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:6px}
 .fact{font-size:11.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 7px}
@@ -326,6 +328,7 @@ dialog .nform{max-height:85vh;overflow:auto}
 </header>
 
 <main class="wrap">
+  <div id="backupBar" class="backup" hidden></div>
   <section id="v-home"></section>
 
   <section id="v-offres" hidden>
@@ -409,19 +412,25 @@ try {
     }
   }
 } catch (e) { ST = {}; }
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) {} };
+/* sauvegarde : les données perso ne vivent que dans ce navigateur (Safari les efface après 7 jours sans visite) */
+const BKEY = "radar-backup-v1";
+let BK = {};
+try { BK = JSON.parse(localStorage.getItem(BKEY) || "{}") || {}; } catch (e) {}
+const touched = () => { BK.changed = Date.now(); try { localStorage.setItem(BKEY, JSON.stringify(BK)); } catch (e) {} };
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) {} touched(); };
 // Offres ajoutées à la main + vérifications ("pas encore ouverte") — enregistrées dans ce navigateur
 const MKEY = "radar-manuel-v1";
 let MAN = {offers: [], checks: {}};
 try { MAN = Object.assign({offers: [], checks: {}}, JSON.parse(localStorage.getItem(MKEY) || "{}")); } catch (e) {}
-const saveMan = () => { try { localStorage.setItem(MKEY, JSON.stringify(MAN)); } catch (e) {} };
+const saveMan = () => { try { localStorage.setItem(MKEY, JSON.stringify(MAN)); } catch (e) {} touched(); };
 const progKey = p => `${p.company}|${p.program}`;
 const statusOf = id => (ST[id] && ST[id].s) || "";
 // Événements : "go" (à voir), "inscrit", "ignore" — enregistrés dans ce navigateur
 const EKEY = "radar-events-v1";
 let EVST = {};
 try { EVST = JSON.parse(localStorage.getItem(EKEY) || "{}") || {}; } catch (e) {}
-const saveEv = () => { try { localStorage.setItem(EKEY, JSON.stringify(EVST)); } catch (e) {} };
+const saveEv = () => { try { localStorage.setItem(EKEY, JSON.stringify(EVST)); } catch (e) {} touched(); };
 const evStatus = id => EVST[id] || "";
 const firstName = () => (((DATA.profile || {}).name || "").split(" ")[0]) || "";
 function criteriaText() {
@@ -1071,7 +1080,7 @@ const RELATION = ["Famille", "Ami / proche", "Professeur", "Alumni EDHEC", "Alum
 const WARMTH = ["Froid", "Tiède", "Chaud"];
 const effortLetter = p => ({"1": "A", "2": "B", "3": "C"})[p] || "";
 let NCARNET = {q: "", prio: "", cat: "", only: "", status: ""};
-const saveNet = () => { try { localStorage.setItem(NKEY, JSON.stringify(NET)); } catch (e) { alert("Impossible d'enregistrer (stockage du navigateur plein ou bloqué)."); } };
+const saveNet = () => { try { localStorage.setItem(NKEY, JSON.stringify(NET)); } catch (e) { alert("Impossible d'enregistrer (stockage du navigateur plein ou bloqué)."); } touched(); };
 const NSTAT = [["repere", "Repéré", "b-grey"], ["contacte", "Contacté", "b-brand"], ["repondu", "A répondu", "b-info"],
                ["call", "Call fait", "b-warn"], ["reco", "Recommandé", "b-ok"], ["veille", "En veille", "b-grey"]];
 const NSTAT_LABEL = Object.fromEntries(NSTAT.map(([k, l]) => [k, l]));
@@ -1812,7 +1821,7 @@ function render() {
   } else {
     ({home: renderHome, springs: renderSprings, pages: renderPages, cal: renderCal, events: renderEvents, mine: renderMine, net: renderNet, info: renderInfo})[TAB]();
   }
-  renderCounts();
+  renderCounts(); renderBackup();
 }
 function go(target) {  // "offres:prio:eligible", "springs", "cal"...
   const [tab, sub, elig] = target.split(":");
@@ -1888,7 +1897,15 @@ $("dlg").addEventListener("close", () => {
 function exportData() {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify({version: 5, candidatures: ST, manuel: MAN, reseau: NET, events: EVST}, null, 1)], {type: "application/json"}));
-  a.download = "radar-mes-donnees.json"; a.click();
+  a.download = "lolipop-sauvegarde-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
+  BK.exported = Date.now(); try { localStorage.setItem(BKEY, JSON.stringify(BK)); } catch (e) {}
+  renderBackup();
+}
+function renderBackup() {
+  const bar = $("backupBar"), days = BK.exported ? Math.floor((Date.now() - BK.exported) / 864e5) : null;
+  const due = BK.changed && (!BK.exported || (BK.changed > BK.exported && Date.now() - BK.exported > 3 * 864e5));
+  bar.hidden = !due;
+  if (due) bar.innerHTML = `<span><b>Pense à sauvegarder.</b> Ton réseau, tes candidatures et tes notes ne sont enregistrés que dans ce navigateur. ${days === null ? "Tu n'as jamais fait de sauvegarde." : "Dernière sauvegarde il y a " + days + " jour" + (days > 1 ? "s" : "") + "."} Garde le fichier dans iCloud Drive ou Google Drive.</span><button class="btn sm" data-export>Sauvegarder maintenant</button>`;
 }
 document.addEventListener("change", async e => {
   if (!e.target.matches("input[data-import]")) return;
