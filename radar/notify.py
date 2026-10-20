@@ -78,3 +78,9 @@ def event_line(e):
     if e.get("restriction"):
         s += "\n⚠️ Réservé : " + esc(e["restriction"])
     return s
+
+
+def news_line(n):
+    stage = f" · <i>{esc(n['stage'])}</i>" if n.get("stage") else ""
+    firms = f"<b>{esc(', '.join(n['firms'][:3]))}</b> — " if n.get("firms") else ""
+    return f'• {firms}<a href="{esc(n["url"])}">{esc(n["title"])}</a> <i>({esc(n.get("source") or "")})</i>{stage}'

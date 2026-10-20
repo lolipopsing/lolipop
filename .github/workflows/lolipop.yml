@@ -33,7 +33,7 @@ jobs:
         run: |
           git config user.name "lolipop-bot"
           git config user.email "lolipop-bot@users.noreply.github.com"
-          git add data docs/jobs.json
+          git add data docs/jobs.json docs/news.json
           if git diff --cached --quiet; then
             echo "Rien à sauvegarder."
           else

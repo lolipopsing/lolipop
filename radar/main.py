@@ -21,7 +21,7 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
-from . import events, notify
+from . import events, news, notify
 from .details import analyze, evaluate, fill_details
 from .pages import for_dashboard, scan_pages
 from .classify import STRONG_TARGET, classify, country, spring_tracker_level
@@ -30,6 +30,7 @@ from .sources import FETCHERS, workday_posted
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATE_PATH = os.path.join(ROOT, "data", "state.json")
 DASH_PATH = os.path.join(ROOT, "docs", "jobs.json")
+NEWS_PATH = os.path.join(ROOT, "docs", "news.json")
 MISSING_BEFORE_CLOSED = 3     # scans in a row without the posting before we call it closed
 KEEP_CLOSED_DAYS = 30
 MAX_INSTANT = 10              # above this, new offers are grouped in one message
@@ -435,6 +436,15 @@ def scan():
         except Exception as e:
             print("  ✗ TrackR (springs attendues)", e)
         state["events_slot"] = slot("6h")
+    if state.get("news_slot") != slot("hourly"):  # investment banking news: every hour, reported once a day (news_hour)
+        fresh = "news" not in state
+        try:
+            news.collect(state, companies, now)
+        except Exception as e:
+            print("  ✗ Actu", e)
+        if fresh:  # first read: today's backlog goes to the dashboard, not to Telegram
+            state["news_sent"] = sorted(state.get("news", {}))
+        state["news_slot"] = slot("hourly")
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=KEEP_CLOSED_DAYS)).isoformat()
     for jid in [k for k, j in jobs.items() if j.get("closed") and j["closed"] < cutoff]:
@@ -468,11 +478,14 @@ def scan():
     if lt.hour >= cfg.get("events_hour", 19) and state.get("last_events_digest") != today and not first_run:
         events_digest(cfg, state)
         state["last_events_digest"] = today
+    if lt.hour >= cfg.get("news_hour", 8) and state.get("last_news_digest") != today and not first_run:
+        news_digest(cfg, state)
+        state["last_news_digest"] = today
     if lt.hour >= cfg.get("pages_hour", 20) and state.get("last_pages_digest") != today:
         notify_pages(cfg, state.pop("pages_queue", []))
         state["last_pages_digest"] = today
 
-    if fingerprint(state) != before or not os.path.exists(DASH_PATH):
+    if fingerprint(state) != before or not os.path.exists(DASH_PATH) or not os.path.exists(NEWS_PATH):
         save(state, companies, cfg)
         print(f"État mis à jour ({len(new)} nouvelles offres).")
     else:
@@ -550,6 +563,27 @@ def events_digest(cfg, state):
                     + "\n\n".join(notify.event_line(e) for e in top) + more + dash_link(cfg))
     keep = {e["id"] for e in events.upcoming(state)}
     state["events_sent"] = sorted((sent | {e["id"] for e in todo}) & keep)
+
+
+NEWS_DIGEST = {"deal": 8, "talent": 6, "policy": 5}
+
+
+def news_digest(cfg, state):
+    """Once a day: the headlines of the last 24 h that matter most (deals, senior moves, policy)."""
+    sent = set(state.get("news_sent", []))
+    todo = [n for n in news.items(state) if n["id"] not in sent and n["kind"] in NEWS_DIGEST]
+    blocks, total = [], 0
+    for kind, cap in NEWS_DIGEST.items():
+        group = sorted([n for n in todo if n["kind"] == kind], key=lambda n: (-n["score"], n.get("published") or ""))
+        group = [n for n in group if n["firms"] or n["score"] >= 3][:cap]
+        if group:
+            total += len(group)
+            blocks.append(f"<b>{news.KIND_LABEL[kind]}</b>\n" + "\n".join(notify.news_line(n) for n in group))
+    if blocks:
+        notify.send(f"📰 <b>Actu des banques d'affaires : {total} info(s) à retenir</b>\n\n" + "\n\n".join(blocks)
+                    + "\n\nTout le reste dans l'onglet Actu." + dash_link(cfg))
+    keep = set(state.get("news", {}))
+    state["news_sent"] = sorted((sent | {n["id"] for n in todo}) & keep)
 
 
 def fill_posted_dates(jobs, budget=300):
@@ -770,6 +804,9 @@ def save(state, companies, cfg):
                               for e in events.upcoming(state)],
                    "events_errors": state.get("events_errors", [])},
                   f, ensure_ascii=False, separators=(",", ":"))
+    with open(NEWS_PATH, "w", encoding="utf-8") as f:
+        json.dump({"updated": now_iso(), "items": news.items(state), "errors": state.get("news_errors", []),
+                   "queries": len(news.TOPICS)}, f, ensure_ascii=False, separators=(",", ":"))
 
 
 # ------------------------------------------------------------------ CLI helpers

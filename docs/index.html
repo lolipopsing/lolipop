@@ -218,6 +218,15 @@ dialog p.d{margin:0 0 16px;color:var(--muted);font-size:12.5px}
 .card-h a{margin-left:auto;font-size:12.5px;font-weight:600;cursor:pointer}
 .mini{display:flex;align-items:center;gap:12px;padding:10px 16px;border-top:1px solid var(--line)}
 .mini:first-child{border-top:0}
+.nrow{display:flex;gap:12px;align-items:flex-start;padding:11px 16px;border-top:1px solid var(--line)}
+.nrow:first-child{border-top:0}
+.nrow .t{flex:1;min-width:0;display:grid;gap:4px}
+.nrow .t>a{color:var(--ink);font-size:13.5px;font-weight:500;line-height:1.4}
+.nrow .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.nrow .r{flex:none;display:flex;gap:6px;align-items:center}
+.fchip{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.fchip.me{background:var(--brand-soft);color:var(--brand);border-color:transparent}
+@media (max-width:640px){.nrow{flex-wrap:wrap}.nrow .r{width:100%;justify-content:flex-end}}
 .mini .mono{width:32px;height:32px;font-size:11.5px;border-radius:8px;flex:none}
 .mini .t{flex:1;min-width:0}
 .mini .t b{display:block;font-size:13px}
@@ -320,6 +329,7 @@ dialog .nform{max-height:85vh;overflow:auto}
       <button class="tab" data-tab="pages">Pages étudiantes<span class="n" id="n-pages"></span></button>
       <button class="tab" data-tab="cal">Calendrier</button>
       <button class="tab" data-tab="events">Events<span class="n" id="n-events"></span></button>
+      <button class="tab" data-tab="actu">Actu<span class="n" id="n-actu"></span></button>
       <button class="tab" data-tab="mine">Candidatures<span class="n" id="n-mine"></span></button>
       <button class="tab" data-tab="net">Réseau<span class="n" id="n-net"></span></button>
       <button class="tab" data-tab="info">Infos générales</button>
@@ -356,6 +366,7 @@ dialog .nform{max-height:85vh;overflow:auto}
   <section id="v-pages" hidden></section>
   <section id="v-cal" hidden></section>
   <section id="v-events" hidden></section>
+  <section id="v-actu" hidden></section>
   <section id="v-mine" hidden></section>
   <section id="v-net" hidden></section>
   <section id="v-info" hidden></section>
@@ -1018,6 +1029,82 @@ function renderEvents() {
       « Pour toi » = en France ou en ligne, lié au M&A / PE / marchés ou organisé par une banque ou un fonds, pas payant. Ton suivi (À voir, Inscrit·e) reste dans ce navigateur.</p>`;
 }
 
+/* ---------- Actu ---------- */
+let NEWS = {items: []};
+let ACF = {kind: "all", stage: "", mine: false, q: "", limit: 150};
+const NKIND = {deal: ["Deal", "b-ok"], talent: ["Mouvement", "b-info"], policy: ["Politique & régulation", "b-warn"], other: ["Autre", "b-grey"]};
+function loadNews() {
+  return fetch("news.json?" + Date.now()).then(r => r.ok ? r.json() : {items: []}).then(d => { NEWS = d || {items: []}; renderCounts(); if (TAB === "actu") render(); }).catch(() => {});
+}
+function myFirms() {  // boîtes de ton carnet (effort, statut, notes, deals) ou où tu as des contacts
+  const set = new Set(NET.contacts.map(c => c.firm).filter(Boolean));
+  for (const [name, n] of Object.entries(NET.firms || {})) if (n.prio || n.status || n.notes || (n.deals || []).length) set.add(name);
+  return set;
+}
+const inCarnet = (firm, url) => ((NET.firms[firm] || {}).deals || []).some(d => d.url === url);
+function newsRow(n, mine) {
+  const [kl, kc] = NKIND[n.kind] || NKIND.other;
+  const firm = n.firms.find(f => mine.has(f)) || n.firms[0];
+  const saved = firm && inCarnet(firm, n.url);
+  const also = (n.also || []).length ? ` · aussi : ${esc(n.also.join(", "))}` : "";
+  return `<div class="nrow">
+    <div class="t"><a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>
+      <div class="meta"><span class="badge ${kc} b-plain">${kl}</span>${n.stage ? `<span class="badge b-grey">${esc(n.stage)}</span>` : ""}
+        ${n.firms.map(f => `<span class="fchip ${mine.has(f) ? "me" : ""}" data-actufirm="${esc(f)}" title="Ouvrir la fiche ${esc(f)}">${esc(f)}</span>`).join("")}
+        <span>${esc(n.source || "")}${also} · ${esc(ago(n.published || n.first_seen))}</span></div></div>
+    <div class="r">${firm && n.kind === "deal" ? (saved ? `<span class="badge b-ok b-plain">✓ Dans le carnet</span>`
+      : `<button class="btn sm ghost" data-actusave="${esc(n.id)}" title="Ajouter aux « Deals qui m'ont marqué » de ${esc(firm)}">+ Carnet</button>`) : ""}</div></div>`;
+}
+function renderActu() {
+  const all = NEWS.items || [], mine = myFirms(), q = nnorm(ACF.q);
+  const base = all.filter(n => (!ACF.mine || n.firms.some(f => mine.has(f))) && (!q || nnorm(`${n.title} ${n.firms.join(" ")} ${n.source}`).includes(q)));
+  const list = base.filter(n => (ACF.kind === "all" || n.kind === ACF.kind) && (!ACF.stage || n.stage === ACF.stage));
+  const top = all.filter(n => Date.now() - new Date(n.published || n.first_seen) < 1.5 * 864e5 && n.kind !== "other")
+    .sort((a, b) => (b.firms.some(f => mine.has(f)) - a.firms.some(f => mine.has(f))) || b.score - a.score).slice(0, 6);
+  const groups = {};
+  for (const n of list.slice(0, ACF.limit)) {
+    const d = -daysFrom(isoDay(new Date(n.published || n.first_seen)));
+    const k = d <= 0 ? "Aujourd'hui" : d === 1 ? "Hier" : new Date(n.published || n.first_seen).toLocaleDateString("fr-FR", {weekday: "long", day: "numeric", month: "long"});
+    (groups[k] = groups[k] || []).push(n);
+  }
+  const cnt = k => base.filter(n => k === "all" || n.kind === k).length;
+  const chip = (v, l) => `<button class="chip ${ACF.kind === v ? "on" : ""}" data-actukind="${v}"><b>${cnt(v)}</b>${l}</button>`;
+  const deals = base.filter(n => n.kind === "deal");
+  const schip = (v, l) => `<button class="chip ${ACF.stage === v ? "on" : ""}" data-actustage="${v}"><b>${v ? deals.filter(n => n.stage === v).length : deals.length}</b>${l}</button>`;
+  $("v-actu").innerHTML = `<div class="page-title"><h1>Actu</h1><p>Deals (aboutis, signés, en process), arrivées et départs de MD, partners et heads, et décisions politiques ou réglementaires qui touchent les banques. Relu toutes les heures, récap Telegram chaque matin à 8 h.</p></div>
+    ${top.length ? `<div class="card" style="margin-bottom:14px"><div class="card-h"><h3>À la une</h3><span class="c">dernières 36 h, tes boîtes d'abord</span></div>
+      <div>${top.map(n => newsRow(n, mine)).join("")}</div></div>` : ""}
+    <div class="filters" style="align-items:center">
+      ${chip("all", "tout")}${chip("deal", "deals")}${chip("talent", "mouvements")}${chip("policy", "politique & régulation")}${chip("other", "autres")}
+      <input type="search" id="acq" placeholder="Rechercher une boîte, une cible, un banquier…" value="${esc(ACF.q)}">
+      <label class="check"><input type="checkbox" id="acmine" ${ACF.mine ? "checked" : ""}> Seulement mes boîtes (${mine.size})</label></div>
+    ${ACF.kind === "deal" ? `<div class="filters">${schip("", "tous les deals")}${schip("Abouti", "aboutis")}${schip("Signé / annoncé", "signés / annoncés")}${schip("En process", "en process")}</div>` : ""}
+    ${list.length ? Object.entries(groups).map(([k, g]) => `<div class="section-head"><h2 style="text-transform:capitalize">${esc(k)}</h2><span class="c">${g.length}</span></div>
+      <div class="panel">${g.map(n => newsRow(n, mine)).join("")}</div>`).join("")
+      + (list.length > ACF.limit ? `<div style="text-align:center;margin:14px"><button class="btn ghost" data-actumore>Voir plus (${list.length - ACF.limit})</button></div>` : "")
+      : `<div class="panel empty">${all.length ? (ACF.mine && !mine.size ? "Ton carnet est vide : ajoute des notes, un niveau d'effort ou des contacts à tes boîtes dans Réseau." : "Aucune info ne correspond à ces filtres.") : "Pas encore d'actu : elle est relue toutes les heures."}</div>`}
+    <p class="note">Sources : Google News (recherches sur les deals, les nominations et la régulation, en anglais et en français, plus une recherche sur chacune des boîtes prioritaires suivies par Lolipop), PE Hub, Private Equity Wire et finews. Les infos sont gardées 21 jours.
+      « Mes boîtes » = celles de ton carnet (notes, niveau d'effort, statut, deals) ou où tu as un contact. « + Carnet » range le deal dans « Deals qui m'ont marqué » de la boîte, pratique pour tes entretiens et tes messages de networking.</p>`;
+}
+document.addEventListener("click", e => {
+  let el;
+  if ((el = e.target.closest("[data-actukind]"))) { ACF.kind = el.dataset.actukind; ACF.stage = ""; ACF.limit = 150; render(); return; }
+  if ((el = e.target.closest("[data-actustage]"))) { ACF.stage = el.dataset.actustage; render(); return; }
+  if (e.target.closest("[data-actumore]")) { ACF.limit += 150; render(); return; }
+  if ((el = e.target.closest("[data-actufirm]"))) { NFIRM = el.dataset.actufirm; NSUB = "firms"; go("net"); return; }
+  if ((el = e.target.closest("[data-actusave]"))) {
+    const n = (NEWS.items || []).find(x => x.id === el.dataset.actusave); if (!n) return;
+    const mine = myFirms(), firm = n.firms.find(f => mine.has(f)) || n.firms[0], note = firmNote(firm);
+    note.deals.push({id: "d" + Date.now().toString(36), d: isoDay(new Date(n.published || n.first_seen)), title: n.title, role: "", size: "", url: n.url,
+                     note: n.stage ? "Statut : " + n.stage.toLowerCase() : "", contacts: []});
+    touchFirm(firm); render();
+  }
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "acq") { ACF.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $("acq"); q.focus(); q.setSelectionRange(pos, pos); }
+  if (e.target.id === "acmine") { ACF.mine = e.target.checked; render(); }
+});
+
 /* ---------- Infos générales ---------- */
 function renderInfo() {
   const comps = DATA.companies || [], pages = DATA.pages || [];
@@ -1358,6 +1445,8 @@ function netFirms(S) {
       <span class="sub" style="display:inline">${esc(info.category || "")} · ${people.length} contact${people.length > 1 ? "s" : ""} · ${openOffersAt(firm).length} offre${openOffersAt(firm).length > 1 ? "s" : ""} ciblée${openOffersAt(firm).length > 1 ? "s" : ""} ouverte${openOffersAt(firm).length > 1 ? "s" : ""}</span>
       <span class="spacer"></span><button class="btn sm ghost" data-nnew="${esc(firm)}">+ Contact chez ${esc(firm)}</button></div>
     ${firmInfoCard(firm, note)}
+    ${(() => { const fn = (NEWS.items || []).filter(n => n.firms.includes(firm)).slice(0, 6), mine = myFirms();
+      return fn.length ? `<div class="card" style="margin-bottom:14px"><div class="card-h"><h3>Actu récente de ${esc(firm)}</h3><span class="c">${fn.length} info${fn.length > 1 ? "s" : ""} sur 21 jours</span></div><div>${fn.map(n => newsRow(n, mine)).join("")}</div></div>` : ""; })()}
     <div class="grid3">
       <div class="card"><div class="card-h"><h3>Mes notes</h3><span class="c">${note.updated ? "modifiées " + ago(note.updated) : "pourquoi cette boîte, culture, process, questions à poser…"}</span></div>
         <div style="padding:12px 16px 16px">
@@ -1809,17 +1898,18 @@ function renderCounts() {
   $("n-springs").textContent = S.springsOpen.length || "";
   $("n-pages").textContent = S.pagesChanged.length || "";
   $("n-events").textContent = (DATA.events || []).filter(e => e.notify && e.first_seen && Date.now() - new Date(e.first_seen) < 2 * 864e5 && evStatus(e.id) !== "ignore").length || "";
+  $("n-actu").textContent = (NEWS.items || []).filter(n => Date.now() - new Date(n.first_seen) < 864e5 && (n.score >= 8 || n.firms.some(f => myFirms().has(f)))).length || "";
   $("n-mine").textContent = Object.values(ST).filter(v => v.s && v.s !== "Ignorer").length || "";
   $("n-net").textContent = netStats().due.length || "";
 }
 function render() {
-  ["home", "offres", "springs", "pages", "cal", "events", "mine", "net", "info"].forEach(t => $("v-" + t).hidden = t !== TAB);
+  ["home", "offres", "springs", "pages", "cal", "events", "actu", "mine", "net", "info"].forEach(t => $("v-" + t).hidden = t !== TAB);
   if (TAB === "offres") {
     ["prio", "news", "table"].forEach(t => $("v-" + t).hidden = t !== SUB);
     document.querySelectorAll(".sub").forEach(b => b.classList.toggle("on", b.dataset.sub === SUB));
     ({prio: renderPrio, news: renderNews, table: renderTable})[SUB]();
   } else {
-    ({home: renderHome, springs: renderSprings, pages: renderPages, cal: renderCal, events: renderEvents, mine: renderMine, net: renderNet, info: renderInfo})[TAB]();
+    ({home: renderHome, springs: renderSprings, pages: renderPages, cal: renderCal, events: renderEvents, actu: renderActu, mine: renderMine, net: renderNet, info: renderInfo})[TAB]();
   }
   renderCounts(); renderBackup();
 }
@@ -1979,9 +2069,9 @@ async function fetchLastScan() {
   showUpdated();
 }
 setInterval(showUpdated, 30e3);
-setInterval(() => { fetchLastScan(); loadData(true); }, 5 * 60e3);  // rafraîchit tout seul toutes les 5 min
+setInterval(() => { fetchLastScan(); loadData(true); loadNews(); }, 5 * 60e3);  // rafraîchit tout seul toutes les 5 min
 document.addEventListener("visibilitychange", () => {  // retour sur l'onglet / l'app : on recharge tout de suite
-  if (document.visibilityState === "visible" && DATA.updated) { fetchLastScan(); loadData(true); }
+  if (document.visibilityState === "visible" && DATA.updated) { fetchLastScan(); loadData(true); loadNews(); }
 });
 
 let FIRMINFO = {};  // docs/firms.json : recherche sur chaque boîte (activité, process, calendrier, e-mails publics)
@@ -2001,6 +2091,7 @@ loadData(false).then(d => {
   $("countryList").innerHTML = [...new Set(d.jobs.map(j => j.country).filter(Boolean))].sort().map(c => `<option value="${esc(c)}">`).join("");
   render();
   fetchLastScan();
+  loadNews();
 }).catch(() => {
   $("updated").textContent = "En attente du premier scan";
   $("v-home").innerHTML = `<div class="panel empty" style="margin-top:24px">Pas encore de données : le premier scan n'a pas encore tourné.</div>`;
