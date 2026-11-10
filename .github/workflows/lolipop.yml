@@ -1,21 +1,25 @@
 name: Lolipop
 
+# GitHub lance les "schedule" au mieux : un cron toutes les 5 min tombe souvent à 3 ou 4 lancements par jour.
+# Le scan tourne donc en boucle dans un seul job (un passage toutes les 5 min pendant ~5 h 30), puis se relance
+# lui-même. Le cron horaire ne sert que de secours, pour redémarrer la boucle si la chaîne s'arrête.
 on:
   schedule:
-    - cron: "*/5 * * * *"    # toutes les 5 min pour les springs ; le reste suit son propre rythme (radar/main.py → rhythm)
+    - cron: "17 * * * *"
   workflow_dispatch: {}       # bouton "Run workflow" pour lancer à la main
 
 permissions:
   contents: write
+  actions: write              # pour se relancer à la fin de la boucle
 
 concurrency:
   group: radar
-  cancel-in-progress: false
+  cancel-in-progress: false   # une seule boucle à la fois ; le lancement suivant attend son tour
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 14
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
@@ -23,21 +27,37 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Scanner les sites carrières
+      - name: Scanner toutes les 5 min (boucle de ~5 h 30)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -u -m radar scan
-
-      - name: Sauvegarder les résultats
+          LOOP_SECONDS: "19800"   # 5 h 30
+          EVERY: "300"            # un scan toutes les 5 min
+          PUSH_EVERY: "600"       # envoi sur GitHub toutes les 10 min au plus (limite de GitHub Pages)
         run: |
           git config user.name "lolipop-bot"
           git config user.email "lolipop-bot@users.noreply.github.com"
-          git add data docs/jobs.json docs/news.json
-          if git diff --cached --quiet; then
-            echo "Rien à sauvegarder."
-          else
-            git commit -m "lolipop: mise à jour des offres" -q
-            git pull --rebase -q || true
-            git push -q
-          fi
+          start=$(date +%s); last_push=0
+          sync() {
+            git pull --rebase -X theirs -q || { git rebase --abort 2>/dev/null; echo "⚠️ pull impossible, nouvel essai plus tard"; return; }
+            git push -q && last_push=$(date +%s) || echo "⚠️ push impossible, nouvel essai plus tard"
+          }
+          while true; do
+            t0=$(date +%s)
+            echo "::group::Scan $(date -u +%H:%M) UTC"
+            timeout 900 python -u -m radar scan || echo "⚠️ scan en erreur, on continue"
+            git add data docs/jobs.json docs/news.json 2>/dev/null || git add data docs/jobs.json
+            git diff --cached --quiet || git commit -m "lolipop: mise à jour des offres" -q
+            # code mis à jour par toi (push) : récupéré au prochain envoi, utilisé dès le scan suivant
+            if [ $(( $(date +%s) - last_push )) -ge "$PUSH_EVERY" ]; then sync; fi
+            echo "::endgroup::"
+            [ $(( $(date +%s) - start )) -ge "$LOOP_SECONDS" ] && break
+            wait=$(( EVERY - ($(date +%s) - t0) )); [ "$wait" -gt 0 ] && sleep "$wait"
+          done
+          sync
+
+      - name: Relancer la boucle
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run lolipop.yml --ref "${{ github.ref_name }}"
